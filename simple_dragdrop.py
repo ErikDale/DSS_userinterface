@@ -6,7 +6,40 @@ from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QPixmap
 
 
-class ImageLabel(QLabel):
+class DropZone(QLabel):
+    def __init__(self):
+        super().__init__()
+        self.setAlignment(Qt.AlignCenter)
+        self.setText('\n\n Drop DSS Image Here \n\n')
+        self.setStyleSheet('''
+            QLabel{
+                border: 4px dashed #aaa
+            }
+        ''')
+        self.btn = QtWidgets.QPushButton(self)
+        self.btn.setText("Browse Images")
+        self.btn.clicked.connect(self.explore)
+        self.btn.setGeometry(125, 200, 150, 25)
+
+        # Creates a button for removing the image
+        self.deleteBtn = QtWidgets.QPushButton(self)
+        self.deleteBtn.setText("Remove Image")
+        self.deleteBtn.clicked.connect(self.removeImage)
+        self.deleteBtn.setGeometry(0, 0, 150, 25)
+        self.deleteBtn.hide()
+
+    # Method that removes the Image from the drop zone
+    def removeImage(self):
+        self.setAlignment(Qt.AlignCenter)
+        self.setText('\n\n Drop DSS Image Here \n\n')
+        self.setStyleSheet('''
+                    QLabel{
+                        border: 4px dashed #aaa
+                    }
+                ''')
+        self.btn.show()
+        self.deleteBtn.hide()
+
     # Method to open file explorer and choose an image
     def explore(self):
         # Gets the path of the Pictures folder
@@ -23,20 +56,9 @@ class ImageLabel(QLabel):
             fname = QtWidgets.QFileDialog.getOpenFileName(self, 'Open file', str(path),
                                                           'JPG files (*.jpg);;PNG files (*.png)')
         super().setPixmap(QPixmap(fname[0]))
-
-    def __init__(self):
-        super().__init__()
-        self.setAlignment(Qt.AlignCenter)
-        self.setText('\n\n Drop DSS Image Here \n\n')
-        self.setStyleSheet('''
-            QLabel{
-                border: 4px dashed #aaa
-            }
-        ''')
-        self.btn = QtWidgets.QPushButton(self)
-        self.btn.setText("Browse Images")
-        self.btn.clicked.connect(self.explore)
-        self.btn.setGeometry(125, 200, 150, 25)
+        # Deletes the button after an image have been droped
+        self.btn.hide()
+        self.deleteBtn.show()
 
     def setPixmap(self, image):
         super().setPixmap(image)
@@ -50,9 +72,11 @@ class AppDemo(QWidget):
         self.setGeometry(400, 400, 400, 400)
         self.setAcceptDrops(True)
 
+        # Creates a QVBoxLayout
         self.mainLayout = QVBoxLayout()
 
-        self.photoViewer = ImageLabel()
+        # Creates an instance of the DropZone class
+        self.photoViewer = DropZone()
         self.mainLayout.addWidget(self.photoViewer)
 
         self.setLayout(self.mainLayout)
@@ -82,6 +106,8 @@ class AppDemo(QWidget):
                     event.setDropAction(Qt.CopyAction)
                     file_path = event.mimeData().urls()[0].toLocalFile()
                     self.set_image(file_path)
+                    self.photoViewer.btn.hide()
+                    self.deleteBtn.show()
                     event.accept()
                 else:
                     event.ignore()
