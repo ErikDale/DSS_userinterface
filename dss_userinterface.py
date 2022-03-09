@@ -2,7 +2,7 @@ import sys, os
 from pathlib import Path
 from PyQt5 import QtWidgets, QtGui, QtCore
 from PyQt5.QtWidgets import QApplication, QWidget, QLabel, QGridLayout, QRubberBand, QSizePolicy, QScrollArea, \
-    QMainWindow, QVBoxLayout, QAction, QShortcut, QGraphicsView
+    QMainWindow, QVBoxLayout, QAction, QShortcut, QGraphicsView, QFileDialog
 from PyQt5.QtCore import Qt, QRect, QSize, QPoint, pyqtSignal
 from PyQt5.QtGui import QPixmap, QImage, QKeySequence, QFont, QPainter, QBrush, QPalette
 
@@ -256,24 +256,52 @@ class App(QWidget):
         # Creates a button for classifying the image
         self.classifyButton = QtWidgets.QPushButton(self)
         self.classifyButton.setText("Classify Image")
-        self.removeButton.clicked.connect(self.removeImage)
+        # self.classifyButton.clicked.connect(<some_function>)
         self.classifyButton.setFont(QFont('Arial', 12))
 
         # Puts the button in the grid
         self.grid.addWidget(self.classifyButton, 4, 0)
+
+        # Creates a button for saving the image
+        self.saveButton = QtWidgets.QPushButton(self)
+        self.saveButton.setText("Save Image")
+        self.saveButton.clicked.connect(self.saveImage)
+        self.saveButton.setFont(QFont('Arial', 12))
+
+        # Puts the button in the grid
+        self.grid.addWidget(self.saveButton, 4, 1)
 
         # Creates a help button that opens a help menu for the user
         self.helpButton = QtWidgets.QPushButton()
         self.helpButton.setText("Help")
         self.helpButton.setFont(QFont('Arial', 12))
         self.helpButton.clicked.connect(self.helpBox)
-        self.grid.addWidget(self.helpButton, 4, 1)
+        self.grid.addWidget(self.helpButton, 5, 0, 1, 2)
 
         self.setLayout(self.grid)
 
         self.createShortCuts()
 
         self.imagePath = None
+
+    def saveImage(self):
+        if self.photoViewer.empty is True:
+            # A message box will appear telling the user that there is no image displayed
+            msg = QtWidgets.QMessageBox()
+            msg.information(self.photoViewer, "No Image To Save", "There is no image to save")
+        else:
+            # Selecting file path
+            filePath, _ = QFileDialog.getSaveFileName(self, "Save Image", "",
+                                                      "PNG(*.png);;JPEG(*.jpg *.jpeg);;All Files(*.*) ")
+
+            # If file path is blank return back
+            if filePath == "":
+                return
+
+            # Saving image at desired path
+            pixmap = self.photoViewer.photo.pixmap()
+            image = pixmap.toImage()
+            image.save(filePath)
 
     # Methos that makes the user able to uncrop an image
     def uncropImage(self):
@@ -296,7 +324,8 @@ class App(QWidget):
         # A message box will appear telling the user that there is no image displayed
         msg = QtWidgets.QMessageBox()
         msg.information(self, "Help", "Shortcuts: \n-Exit app: Ctrl+Q\n-Open images: Ctrl+O\n-Remove image: "
-                                      "Ctrl+R\n-Crop image: Ctrl+W\n-Open help menu: Ctrl+H\n-Uncrop image: Ctrl+U")
+                                      "Ctrl+R\n-Crop image: Ctrl+W\n-Open help menu: Ctrl+H\n-Uncrop image: "
+                                      "Ctrl+U\n-Save image: Ctrl+S") 
 
     # Method that creates shortcuts for the user
     def createShortCuts(self):
@@ -317,6 +346,9 @@ class App(QWidget):
 
         uncropShort = QShortcut(QKeySequence("Ctrl+U"), self)
         uncropShort.activated.connect(self.uncropImage)
+
+        saveShort = QShortcut(QKeySequence("Ctrl+S"), self)
+        saveShort.activated.connect(self.saveImage)
 
     # Method that sets rubberBool to true, so that the rubberBand is shown
     def rubberBandOn(self):
@@ -364,9 +396,10 @@ class App(QWidget):
             msg.information(self, "No Image Displayed", "There is no image displayed")
         else:
             # Empties the fileNameLabel
-            self.fileNameLabel.setText("")
+            self.fileNameLabel.setText("Drop image here")
             # Removes the image
             self.photoViewer.removeItem()
+            self.photoViewer.empty = True
             # Sets ruberBool to false so that you cannot crop when no image is displayed
             self.photoViewer.rubberBool = False
             # Setting the position of the image to the upper right corner of the pixmap
