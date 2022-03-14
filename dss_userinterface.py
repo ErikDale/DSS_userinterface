@@ -1,10 +1,13 @@
 import sys, os
 from pathlib import Path
+
+import cv2
 from PyQt5 import QtWidgets, QtGui, QtCore
 from PyQt5.QtWidgets import QApplication, QWidget, QLabel, QGridLayout, QRubberBand, QSizePolicy, QScrollArea, \
     QMainWindow, QVBoxLayout, QAction, QShortcut, QGraphicsView, QFileDialog
 from PyQt5.QtCore import Qt, QRect, QSize, QPoint, pyqtSignal
-from PyQt5.QtGui import QPixmap, QImage, QKeySequence, QFont, QPainter, QBrush, QPalette
+from PyQt5.QtGui import QPixmap, QImage, QKeySequence, QFont, QPainter, QBrush, QPalette, QPen
+import segmentation_to_classifier as segToClass
 
 
 # Gotten alot from: https://stackoverflow.com/questions/35508711/how-to-enable-pan-and-zoom-in-a-qgraphicsview
@@ -14,6 +17,8 @@ class PhotoViewer(QtWidgets.QGraphicsView):
 
     def __init__(self, parent):
         super(PhotoViewer, self).__init__(parent)
+        # Makes it so that it accepts drops
+        self.setAcceptDrops(True)
         # The zoom level
         self.zoom = 0
         # Boolean to check is image is displayed or not
@@ -21,6 +26,7 @@ class PhotoViewer(QtWidgets.QGraphicsView):
         self.scene = QtWidgets.QGraphicsScene(self)
         self.photo = QtWidgets.QGraphicsPixmapItem()
         self.scene.addItem(self.photo)
+        self.zoomLabel = QLabel()
         self.setScene(self.scene)
 
         self.setTransformationAnchor(QtWidgets.QGraphicsView.AnchorUnderMouse)
@@ -48,6 +54,7 @@ class PhotoViewer(QtWidgets.QGraphicsView):
         self.rectangle = None
 
         self.isCropped = False
+        self.zoomLevel = 100
 
     # Method for removing image from pixmap
     def removeItem(self):
@@ -108,9 +115,13 @@ class PhotoViewer(QtWidgets.QGraphicsView):
             if event.angleDelta().y() > 0:
                 factor = 1.20
                 self.zoom += 1
+                self.zoomLevel *= (factor ** abs(self.zoom))
+                self.zoomLabel.setText("Zoom level: " + str(int(self.zoomLevel)) + "%")
             else:
                 factor = 0.8
                 self.zoom -= 1
+                self.zoomLevel *= (factor ** abs(self.zoom))
+                self.zoomLabel.setText("Zoom level: " + str(int(self.zoomLevel)) + "%")
             if self.zoom > -8:
                 self.scale(factor, factor)
             else:
@@ -202,8 +213,12 @@ class App(QWidget):
         # Creates an instance of the PhotoViewer class
         self.photoViewer = PhotoViewer(self)
 
+        self.zoomLabel = self.photoViewer.zoomLabel
+        self.zoomLabel.setAlignment(Qt.AlignRight)
+        self.grid.addWidget(self.zoomLabel, 1, 1)
+
         # Adds the photoViewer in the grid
-        self.grid.addWidget(self.photoViewer, 1, 0, 1, 2)
+        self.grid.addWidget(self.photoViewer, 2, 0, 1, 2)
 
         # Creates a button for opening the file explorer to upload an image
         self.browseButton = QtWidgets.QPushButton(self)
@@ -212,7 +227,7 @@ class App(QWidget):
         self.browseButton.setFont(QFont('Arial', 12))
 
         # Puts the button in the grid
-        self.grid.addWidget(self.browseButton, 2, 0)
+        self.grid.addWidget(self.browseButton, 3, 0)
 
         # Creates a button for removing the image
         self.removeButton = QtWidgets.QPushButton(self)
@@ -221,7 +236,7 @@ class App(QWidget):
         self.removeButton.setFont(QFont('Arial', 12))
 
         # Puts the button in the grid
-        self.grid.addWidget(self.removeButton, 2, 1)
+        self.grid.addWidget(self.removeButton, 3, 1)
 
         # Creates an empty label
         self.emptyLabel = QLabel()
@@ -237,12 +252,12 @@ class App(QWidget):
         self.uncropButton.setFont(QFont('Arial', 12))
         self.uncropButton.clicked.connect(self.uncropImage)
 
-        self.grid.addWidget(self.uncropButton, 3, 1)
+        self.grid.addWidget(self.uncropButton, 4, 1)
 
         self.grid.setRowStretch(0, 3)
-        self.grid.setRowStretch(1, 18)
-        self.grid.setRowStretch(2, 1)
+        self.grid.setRowStretch(2, 18)
         self.grid.setRowStretch(3, 1)
+        self.grid.setRowStretch(4, 1)
 
         # Creates a button for cropping the image
         self.cropButton = QtWidgets.QPushButton(self)
@@ -251,16 +266,16 @@ class App(QWidget):
         self.cropButton.setFont(QFont('Arial', 12))
 
         # Puts the button in the grid
-        self.grid.addWidget(self.cropButton, 3, 0)
+        self.grid.addWidget(self.cropButton, 4, 0)
 
         # Creates a button for classifying the image
         self.classifyButton = QtWidgets.QPushButton(self)
         self.classifyButton.setText("Classify Image")
-        # self.classifyButton.clicked.connect(<some_function>)
+        self.classifyButton.clicked.connect(self.classify)
         self.classifyButton.setFont(QFont('Arial', 12))
 
         # Puts the button in the grid
-        self.grid.addWidget(self.classifyButton, 4, 0)
+        self.grid.addWidget(self.classifyButton, 5, 0)
 
         # Creates a button for saving the image
         self.saveButton = QtWidgets.QPushButton(self)
@@ -269,14 +284,14 @@ class App(QWidget):
         self.saveButton.setFont(QFont('Arial', 12))
 
         # Puts the button in the grid
-        self.grid.addWidget(self.saveButton, 4, 1)
+        self.grid.addWidget(self.saveButton, 5, 1)
 
         # Creates a help button that opens a help menu for the user
         self.helpButton = QtWidgets.QPushButton()
         self.helpButton.setText("Help")
         self.helpButton.setFont(QFont('Arial', 12))
         self.helpButton.clicked.connect(self.helpBox)
-        self.grid.addWidget(self.helpButton, 5, 0, 1, 2)
+        self.grid.addWidget(self.helpButton, 6, 0, 1, 2)
 
         self.setLayout(self.grid)
 
@@ -284,6 +299,57 @@ class App(QWidget):
 
         self.imagePath = None
 
+    def classify(self):
+        # Checks if there is an image to classify
+        if self.photoViewer.empty is True:
+            # A message box will appear telling the user that there is no image displayed
+            msg = QtWidgets.QMessageBox()
+            msg.information(self.photoViewer, "No Image Displayed", "There is no image to classify")
+        else:
+            # Uses the machine learning model we have made and pytesseract to segment and classify
+            # the letters
+            segmenter = segToClass.Segmentor()
+            img = cv2.imread(self.imagePath)
+            segmentedLetters = segmenter.Segment(img)
+
+            classifier = segToClass.Classifier("./sigmoid+.model")
+            results = classifier.Classify(segmentedLetters)
+
+            # Draws the squares around the letters
+            i = 0
+            for letter in results:
+                width = letter.w - letter.x
+                height = letter.h - letter.y
+                x = letter.x - 2
+                y = (img.shape[0] - (letter.y + height)) - 2
+
+                # Checks if the image is cropped. If it is, it should only draw rectangles inside the cropped area
+                if self.photoViewer.rubberBandItemGeometry is not None:
+                    if self.photoViewer.rubberBandItemGeometry.x() < x < self.photoViewer.rubberBandItemGeometry.x() + \
+                            self.photoViewer.rubberBandItemGeometry.width() and \
+                            self.photoViewer.rubberBandItemGeometry.y() < y < self.photoViewer.rubberBandItemGeometry.y() \
+                            + self.photoViewer.rubberBandItemGeometry.height():
+                        rect = QtWidgets.QGraphicsRectItem(QtCore.QRectF(x, y, width + 2, height + 2))
+                        self.photoViewer.scene.addItem(rect)
+                        text = self.photoViewer.scene.addText(str(letter.label), QFont('Arial', 6))
+                        # Alternates between writing the label on top and under the boxes
+                        if i % 2 == 0:
+                            text.setPos(x - 5, y - 20)
+                        else:
+                            text.setPos(x - 5, y + height)
+                        i += 1
+                else:
+                    rect = QtWidgets.QGraphicsRectItem(QtCore.QRectF(x, y, width + 2, height + 2))
+                    self.photoViewer.scene.addItem(rect)
+                    text = self.photoViewer.scene.addText(str(letter.label), QFont('Arial', 6))
+                    # Alternates between writing the label on top and under the boxes
+                    if i % 2 == 0:
+                        text.setPos(x - 5, y - 20)
+                    else:
+                        text.setPos(x - 5, y + height)
+                    i += 1
+
+    # Method that saves the image to file
     def saveImage(self):
         if self.photoViewer.empty is True:
             # A message box will appear telling the user that there is no image displayed
@@ -318,6 +384,7 @@ class App(QWidget):
             self.photoViewer.photo.setPos(0, 0)
             self.photoViewer.setPhotoWithRectangle(pixmap=QPixmap(self.imagePath), rectangle=False)
             self.photoViewer.isCropped = False
+            self.photoViewer.rubberBandItemGeometry = None
 
     # Method that displays a help box to the user
     def helpBox(self):
@@ -325,7 +392,7 @@ class App(QWidget):
         msg = QtWidgets.QMessageBox()
         msg.information(self, "Help", "Shortcuts: \n-Exit app: Ctrl+Q\n-Open images: Ctrl+O\n-Remove image: "
                                       "Ctrl+R\n-Crop image: Ctrl+W\n-Open help menu: Ctrl+H\n-Uncrop image: "
-                                      "Ctrl+U\n-Save image: Ctrl+S") 
+                                      "Ctrl+U\n-Save image: Ctrl+S")
 
     # Method that creates shortcuts for the user
     def createShortCuts(self):
@@ -362,30 +429,39 @@ class App(QWidget):
 
     # Method to open file explorer and choose an image
     def explore(self):
-        # Gets the path of the Pictures folder
-        path = Path.home()
-        pathStr = str(path) + os.path.sep + "Pictures"
+        if self.photoViewer.empty is True:
+            # Gets the path of the Pictures folder
+            path = Path.home()
+            pathStr = str(path) + os.path.sep + "Pictures"
 
-        # Checks if the computer has a directory called %HOMEPATH%\Pictures
-        if os.path.exists(pathStr):
-            # Opens the file explorer in
-            fileName = QtWidgets.QFileDialog.getOpenFileName(self, 'Open file', pathStr,
-                                                          'JPG files (*.jpg);;PNG files (*.png)')
-        # If the computer doesn't have a file like that it will open the file explorer in the %HOMEPATH%
+            # Checks if the computer has a directory called %HOMEPATH%\Pictures
+            if os.path.exists(pathStr):
+                # Opens the file explorer in
+                fileName = QtWidgets.QFileDialog.getOpenFileName(self, 'Open file', pathStr,
+                                                                 'JPG files (*.jpg);;PNG files (*.png)')
+            # If the computer doesn't have a file like that it will open the file explorer in the %HOMEPATH%
+            else:
+                fileName = QtWidgets.QFileDialog.getOpenFileName(self, 'Open file', str(path),
+                                                                 'JPG files (*.jpg);;PNG files (*.png)')
+
+            # Check if the user has specified a path or just closed the file explorer
+            if fileName[0] != "":
+                self.imagePath = fileName[0]
+                # Displays the image in the photoViewer label
+                self.photoViewer.setPhotoWithRectangle(pixmap=QPixmap(fileName[0]))
+                # Setting the position of the image to the upper right corner of the pixmap
+                self.photoViewer.photo.setPos(0, 0)
+                # Fetches the filename from the path and sets it as the header
+                pathList = str(fileName[0]).split("/")
+                self.fileNameLabel.setText("Filename: " + pathList[-1])
+
+                # Sets the zoomlevel of the image
+                # self.zoomLabel.setText("Zoom level: " + str(self.photoViewer.zoomLevel) + "%")
         else:
-            fileName = QtWidgets.QFileDialog.getOpenFileName(self, 'Open file', str(path),
-                                                          'JPG files (*.jpg);;PNG files (*.png)')
-
-        # Check if the user has specified a path or just closed the file explorer
-        if fileName[0] != "":
-            self.imagePath = fileName[0]
-            # Displays the image in the photoViewer label
-            self.photoViewer.setPhotoWithRectangle(pixmap=QPixmap(fileName[0]))
-            # Setting the position of the image to the upper right corner of the pixmap
-            self.photoViewer.photo.setPos(0, 0)
-            # Fetches the filename from the path and sets it as the header
-            pathList = str(fileName[0]).split("/")
-            self.fileNameLabel.setText("Filename: " + pathList[-1])
+            # A message box will appear telling the user that there is already an image displayed
+            msg = QtWidgets.QMessageBox()
+            msg.information(self.photoViewer, "Image Displayed", "There is already an image displayed.\nRemove it to "
+                                                                 "open another one.")
 
     # Method that removes the Image from the drop zone
     def removeImage(self):
@@ -405,6 +481,8 @@ class App(QWidget):
             # Setting the position of the image to the upper right corner of the pixmap
             self.photoViewer.photo.setPos(0, 0)
 
+            self.zoomLabel.setText("")
+
     # Checks if the file that enters the drop zone is an image
     def dragEnterEvent(self, event):
         if event.mimeData().hasImage:
@@ -421,34 +499,44 @@ class App(QWidget):
 
     # Method that is run when you drop an image in the drop zone
     def dropEvent(self, event):
-        # Gets the file extension of the chosen file
-        filePath = event.mimeData().urls()[0].toLocalFile()
-        _, extension = os.path.splitext(filePath)
-        # If the file is not of type png or jpg an error message will apear
-        if extension == ".png" or extension == ".PNG" or extension == ".JPG" or extension == ".jpg" or \
-                extension == ".JPEG" or extension == ".jpeg":
-            if event.mimeData().hasImage:
-                event.setDropAction(Qt.CopyAction)
-                filePath = event.mimeData().urls()[0].toLocalFile()
-                self.imagePath = filePath
-                # Displays the image in the photoViewer label
-                self.photoViewer.setPhotoWithRectangle(pixmap=QPixmap(filePath))
-                # Setting the position of the image to the upper right corner of the pixmap
-                self.photoViewer.photo.setPos(0, 0)
-                # Fetches the filename from the path and sets it as the header
-                pathList = str(filePath).split("/")
-                self.fileNameLabel.setText("Filename: " + pathList[-1])
-                event.accept()
+        if self.photoViewer.empty is True:
+            # Gets the file extension of the chosen file
+            filePath = event.mimeData().urls()[0].toLocalFile()
+            _, extension = os.path.splitext(filePath)
+            # If the file is not of type png or jpg an error message will apear
+            if extension == ".png" or extension == ".PNG" or extension == ".JPG" or extension == ".jpg" or \
+                    extension == ".JPEG" or extension == ".jpeg":
+                if event.mimeData().hasImage:
+                    event.setDropAction(Qt.CopyAction)
+                    filePath = event.mimeData().urls()[0].toLocalFile()
+                    self.imagePath = filePath
+                    # Displays the image in the photoViewer label
+                    self.photoViewer.setPhotoWithRectangle(pixmap=QPixmap(filePath))
+                    # Setting the position of the image to the upper right corner of the pixmap
+                    self.photoViewer.photo.setPos(0, 0)
+                    # Fetches the filename from the path and sets it as the header
+                    pathList = str(filePath).split("/")
+                    self.fileNameLabel.setText("Filename: " + pathList[-1])
+
+                    # Sets the zoomlevel of the image
+                    # self.zoomLabel.setText("Zoom level: " + str(self.photoViewer.zoomLevel) + "%")
+                    event.accept()
+                else:
+                    event.ignore()
             else:
                 event.ignore()
+                # A message box will appear telling the user that the file type must be jpg or png
+                msg = QtWidgets.QMessageBox()
+                msg.information(self, "Wrong File Type", "The file must be of type jpg or png")
         else:
-            event.ignore()
-            # A message box will appear telling the user that the file type must be jpg or png
+            # A message box will appear telling the user that there is already an image displayed
             msg = QtWidgets.QMessageBox()
-            msg.information(self, "Wrong File Type", "The file must be of type jpg or png")
+            msg.information(self.photoViewer, "Image Displayed", "There is already an image displayed.\nRemove it to "
+                                                                 "open another one.")
+
+        # Starts the application
 
 
-# Starts the application
 app = QApplication(sys.argv)
 demo = App()
 demo.show()
