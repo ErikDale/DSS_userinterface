@@ -55,9 +55,19 @@ class PhotoViewer(QtWidgets.QGraphicsView):
 
         self.isCropped = False
         self.zoomLevel = 100
+        self.rectangles = []
+        self.labels = []
 
     # Method for removing image from pixmap
     def removeItem(self):
+        if len(self.rectangles) != 0:
+            for rectangle in self.rectangles:
+                self.scene.removeItem(rectangle)
+        if len(self.labels) != 0:
+            for label in self.labels:
+                self.scene.removeItem(label)
+        self.rectangles = []
+        self.labels = []
         self.scene.removeItem(self.rectangle)
         pixmap = QPixmap()
         self.photo.setPixmap(pixmap)
@@ -330,8 +340,11 @@ class App(QWidget):
                             self.photoViewer.rubberBandItemGeometry.y() < y < self.photoViewer.rubberBandItemGeometry.y() \
                             + self.photoViewer.rubberBandItemGeometry.height():
                         rect = QtWidgets.QGraphicsRectItem(QtCore.QRectF(x, y, width + 2, height + 2))
+                        self.photoViewer.rectangles.append(rect)
                         self.photoViewer.scene.addItem(rect)
-                        text = self.photoViewer.scene.addText(str(letter.label), QFont('Arial', 6))
+                        text = self.photoViewer.scene.addText(str(letter.label) + " " + str(letter.confidence) + "%",
+                                                              QFont('Arial', 4))
+                        self.photoViewer.labels.append(text)
                         # Alternates between writing the label on top and under the boxes
                         if i % 2 == 0:
                             text.setPos(x - 5, y - 20)
@@ -340,8 +353,11 @@ class App(QWidget):
                         i += 1
                 else:
                     rect = QtWidgets.QGraphicsRectItem(QtCore.QRectF(x, y, width + 2, height + 2))
+                    self.photoViewer.rectangles.append(rect)
                     self.photoViewer.scene.addItem(rect)
-                    text = self.photoViewer.scene.addText(str(letter.label), QFont('Arial', 6))
+                    text = self.photoViewer.scene.addText(str(letter.label) + " " + str(letter.confidence) + "%",
+                                                          QFont('Arial', 4))
+                    self.photoViewer.labels.append(text)
                     # Alternates between writing the label on top and under the boxes
                     if i % 2 == 0:
                         text.setPos(x - 5, y - 20)
