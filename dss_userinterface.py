@@ -19,8 +19,6 @@ class PhotoViewer(QtWidgets.QGraphicsView):
         super(PhotoViewer, self).__init__(parent)
         # Makes it so that it accepts drops
         self.setAcceptDrops(True)
-        # The zoom level
-        self.zoom = 0
         # Boolean to check is image is displayed or not
         self.empty = True
         self.scene = QtWidgets.QGraphicsScene(self)
@@ -79,7 +77,6 @@ class PhotoViewer(QtWidgets.QGraphicsView):
     # Method to set a photo in the pixmap
     def setPhotoWithRectangle(self, rectangle=True, pixmap=None):
         if rectangle:
-            self.zoom = 0
             if pixmap and not pixmap.isNull():
                 self.empty = False
                 self.setDragMode(QtWidgets.QGraphicsView.ScrollHandDrag)
@@ -95,7 +92,6 @@ class PhotoViewer(QtWidgets.QGraphicsView):
                 self.setDragMode(QtWidgets.QGraphicsView.NoDrag)
                 self.photo.setPixmap(QtGui.QPixmap())
         else:
-            self.zoom = 0
             if pixmap and not pixmap.isNull():
                 self.empty = False
                 self.setDragMode(QtWidgets.QGraphicsView.ScrollHandDrag)
@@ -107,7 +103,6 @@ class PhotoViewer(QtWidgets.QGraphicsView):
 
     # Method to set a photo in the pixmap
     def setPhoto(self, pixmap=None):
-        self.zoom = 0
         if pixmap and not pixmap.isNull():
             self.empty = False
             self.setDragMode(QtWidgets.QGraphicsView.ScrollHandDrag)
@@ -124,18 +119,18 @@ class PhotoViewer(QtWidgets.QGraphicsView):
         if self.hasPhoto():
             if event.angleDelta().y() > 0:
                 factor = 1.20
-                self.zoom += 1
-                self.zoomLevel *= (factor ** abs(self.zoom))
+                oldZoom = self.zoomLevel
+                newZoom = self.zoomLevel * factor
+                self.zoomLevel += (newZoom-oldZoom)
                 self.zoomLabel.setText("Zoom level: " + str(int(self.zoomLevel)) + "%")
-            else:
-                factor = 0.8
-                self.zoom -= 1
-                self.zoomLevel *= (factor ** abs(self.zoom))
-                self.zoomLabel.setText("Zoom level: " + str(int(self.zoomLevel)) + "%")
-            if self.zoom > -8:
                 self.scale(factor, factor)
             else:
-                self.zoom = 0
+                factor = 0.8
+                oldZoom = self.zoomLevel
+                newZoom = self.zoomLevel * factor
+                self.zoomLevel += (newZoom - oldZoom)
+                self.zoomLabel.setText("Zoom level: " + str(int(self.zoomLevel)) + "%")
+                self.scale(factor, factor)
 
     # Methods that toggles on and off the different drag modes
     def toggleDragMode(self):
