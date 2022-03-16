@@ -1,11 +1,11 @@
-from optparse import Values
+import math
 
 import cv2
-import matplotlib.pyplot as plt
 import numpy as np
 import pytesseract
 import torch
 import torch.nn as nn
+import torch.nn.functional as nnf
 from PIL import Image
 
 
@@ -32,7 +32,7 @@ class Segmentor:
     def Segment(self, image):
         # Necessary for running pytesseract
         # Info on how to get it running: https://github.com/tesseract-ocr/tesseract/blob/main/README.md
-        pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
+        pytesseract.pytesseract.tesseract_cmd = r'.\tesseract\tesseract.exe'
 
         # Reads image of scroll
         img = image
@@ -149,12 +149,14 @@ class Classifier:
         results = self.model(images)
 
         # Convert the predictions to a numpy array
-        results = results.detach().numpy()
 
         for i, result in enumerate(results):
+            result = nnf.softmax(result, dim=0)
+            result = result.detach().numpy()
+
             confidence = np.argmax(result)
             prediction = self.classes[confidence]
-            letters[i].AddLabel(prediction, confidence)
+            letters[i].AddLabel(prediction, math.trunc(result[confidence] * 100))
 
         return letters
 
