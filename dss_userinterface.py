@@ -1,12 +1,15 @@
 import sys, os
+import traceback
 from pathlib import Path
 
 import cv2
 from PyQt5 import QtWidgets, QtGui, QtCore
 from PyQt5.QtWidgets import QApplication, QWidget, QLabel, QGridLayout, QRubberBand, QSizePolicy, QScrollArea, \
     QMainWindow, QVBoxLayout, QAction, QShortcut, QGraphicsView, QFileDialog
-from PyQt5.QtCore import Qt, QRect, QSize, QPoint, pyqtSignal
-from PyQt5.QtGui import QPixmap, QImage, QKeySequence, QFont, QPainter, QBrush, QPalette, QPen
+from PyQt5.QtCore import Qt, QRect, QSize, QPoint, pyqtSignal, QTimer, pyqtSlot, QRunnable, QObject, QThreadPool
+from PyQt5.QtGui import QPixmap, QImage, QKeySequence, QFont, QPainter, QBrush, QPalette, QPen, QMovie
+from threading import Thread
+
 import segmentation_to_classifier as segToClass
 
 
@@ -53,20 +56,13 @@ class PhotoViewer(QtWidgets.QGraphicsView):
 
         self.isCropped = False
         self.zoomLevel = 100
-        self.rectangles = []
-        self.labels = []
 
     # Method for removing image from pixmap
     def removeItem(self):
-        if len(self.rectangles) != 0:
-            for rectangle in self.rectangles:
-                self.scene.removeItem(rectangle)
-        if len(self.labels) != 0:
-            for label in self.labels:
-                self.scene.removeItem(label)
-        self.rectangles = []
-        self.labels = []
-        self.scene.removeItem(self.rectangle)
+        # Clears the scene
+        self.scene.clear()
+        self.photo = QtWidgets.QGraphicsPixmapItem()
+        self.scene.addItem(self.photo)
         pixmap = QPixmap()
         self.photo.setPixmap(pixmap)
 
@@ -121,7 +117,7 @@ class PhotoViewer(QtWidgets.QGraphicsView):
                 factor = 1.20
                 oldZoom = self.zoomLevel
                 newZoom = self.zoomLevel * factor
-                self.zoomLevel += (newZoom-oldZoom)
+                self.zoomLevel += (newZoom - oldZoom)
                 self.zoomLabel.setText("Zoom level: " + str(int(self.zoomLevel)) + "%")
                 self.scale(factor, factor)
             else:
@@ -189,10 +185,76 @@ class PhotoViewer(QtWidgets.QGraphicsView):
         super(PhotoViewer, self).mouseMoveEvent(event)
 
 
+class WorkerSignals(QObject):
+    finished = pyqtSignal()
+    error = pyqtSignal(tuple)
+    result = pyqtSignal(object)
+    progress = pyqtSignal(int)
+    addItem = pyqtSignal(QtWidgets.QGraphicsRectItem)
+    addText = pyqtSignal(QtWidgets.QGraphicsTextItem)
+
+
+class Worker(QRunnable):
+    def __init__(self, fn, *args, **kwargs):
+        super(Worker, self).__init__()
+
+        # Store constructor arguments (re-used for processing)
+        self.fn = fn
+        self.args = args
+        self.kwargs = kwargs
+        self.signals = WorkerSignals()
+
+        # Add the callback to our kwargs
+        # self.kwargs['progress_callback'] = self.signals.progress
+
+    @pyqtSlot()
+    def run(self):
+        '''
+        Initialise the runner function with passed args, kwargs.
+        '''
+
+        # Retrieve args/kwargs here; and fire processing using them
+        try:
+            result = self.fn(*self.args, **self.kwargs)
+
+            # QtCore.QThread.msleep(5000)  # +++ !!!!!!!!!!!!!!!!!!!!!!
+
+        except:
+            traceback.print_exc()
+            exctype, value = sys.exc_info()[:2]
+            self.signals.error.emit((exctype, value, traceback.format_exc()))
+        else:
+            self.signals.result.emit(result)  # Return the result of the processing
+        finally:
+            self.signals.finished.emit()  # Done
+
+
+class TimerMessageBox(QtWidgets.QMessageBox):
+    def __init__(self, title, text, timeout=2, parent=None):
+        super(TimerMessageBox, self).__init__(parent)
+        self.setWindowTitle(title)
+        self.time_to_wait = timeout
+        self.setText(text)
+        self.timer = QtCore.QTimer(self)
+        self.timer.setInterval(1000)
+        self.timer.timeout.connect(self.changeContent)
+        self.timer.start()
+
+    def changeContent(self):
+        self.time_to_wait -= 1
+        if self.time_to_wait <= 0:
+            self.close()
+
+    def closeEvent(self, event):
+        self.timer.stop()
+        event.accept()
+
+
 # Class that represents the application
 class App(QWidget):
     def __init__(self):
         super().__init__()
+        self.thread = {}
         # Sets the style, title and shape of the application
         self.setStyleSheet("QLabel{font-size: 12pt;}")
         self.setWindowTitle("DSS Classifier")
@@ -217,6 +279,16 @@ class App(QWidget):
 
         # Creates an instance of the PhotoViewer class
         self.photoViewer = PhotoViewer(self)
+
+        # Creates an instance of the LoadingLabel class
+        self.loadingLabel = QLabel(self)
+        self.movie = QMovie(self.loadingLabel)
+        self.movie.setFileName('loading.gif')
+        self.movie.jumpToFrame(0)
+        self.loadingLabel.setMovie(self.movie)
+        self.loadingLabel.hide()
+
+        self.grid.addWidget(self.loadingLabel, 1, 0)
 
         self.zoomLabel = self.photoViewer.zoomLabel
         self.zoomLabel.setAlignment(Qt.AlignRight)
@@ -303,7 +375,47 @@ class App(QWidget):
         self.createShortCuts()
 
         self.imagePath = None
+        self.threadPool = QThreadPool()
+        self.worker = Worker(None)
 
+    def addItemToScene(self, rect):
+        self.photoViewer.scene.addItem(rect)
+
+    def addTextToScene(self, text):
+        self.photoViewer.scene.addText(text)
+
+    def startAnimation(self):
+        self.loadingLabel.show()
+        self.movie.start()
+
+    def stopAnimation(self):
+        self.movie.stop()
+        self.loadingLabel.hide()
+
+    def threadComplete(self):
+        self.stopAnimation()
+
+    def buttonClassify(self):
+        if self.photoViewer.empty is True:
+            # A message box will appear telling the user that there is no image displayed
+            msg = QtWidgets.QMessageBox()
+            msg.information(self.photoViewer, "No Image Displayed", "There is no image to classify")
+        else:
+            self.startAnimation()
+
+            self.worker = Worker(self.classify)
+            self.worker.signals.finished.connect(self.threadComplete)
+            # self.worker.signals.addItem.connect(self.addItemToScene)
+            # self.worker.signals.addText.connect(self.addTextToScene)
+
+            self.threadPool.start(self.worker)
+
+    def confirmClassification(self):
+        # A message box will appear telling the user that there is no image displayed
+        msg = TimerMessageBox("Classified", "The image has been classified", parent=self.photoViewer)
+        msg.exec_()
+
+    # Method that classifies an image.
     def classify(self):
         # Checks if there is an image to classify
         if self.photoViewer.empty is True:
@@ -318,11 +430,11 @@ class App(QWidget):
             segmentedLetters = segmenter.Segment(img)
 
             classifier = segToClass.Classifier("./sigmoid+.model")
-            results = classifier.Classify(segmentedLetters)
+            resultsFromClassifier = classifier.Classify(segmentedLetters)
 
             # Draws the squares around the letters
             i = 0
-            for letter in results:
+            for letter in resultsFromClassifier:
                 width = letter.w - letter.x
                 height = letter.h - letter.y
                 x = letter.x - 2
@@ -335,11 +447,9 @@ class App(QWidget):
                             self.photoViewer.rubberBandItemGeometry.y() < y < self.photoViewer.rubberBandItemGeometry.y() \
                             + self.photoViewer.rubberBandItemGeometry.height():
                         rect = QtWidgets.QGraphicsRectItem(QtCore.QRectF(x, y, width + 2, height + 2))
-                        self.photoViewer.rectangles.append(rect)
                         self.photoViewer.scene.addItem(rect)
                         text = self.photoViewer.scene.addText(str(letter.label) + " " + str(letter.confidence) + "%",
                                                               QFont('Arial', 4))
-                        self.photoViewer.labels.append(text)
                         # Alternates between writing the label on top and under the boxes
                         if i % 2 == 0:
                             text.setPos(x - 5, y - 20)
@@ -348,17 +458,23 @@ class App(QWidget):
                         i += 1
                 else:
                     rect = QtWidgets.QGraphicsRectItem(QtCore.QRectF(x, y, width + 2, height + 2))
-                    self.photoViewer.rectangles.append(rect)
                     self.photoViewer.scene.addItem(rect)
+                    # self.worker.signals.addItem.emit(rect)
+                    # text = str(letter.label) + " " + str(letter.confidence) + "%"
+                    # text = QtWidgets.QGraphicsTextItem()
+                    # text.setPlainText(str(letter.label) + " " + str(letter.confidence) + "%")
+                    # text.setFont(QFont('Arial', 4))
                     text = self.photoViewer.scene.addText(str(letter.label) + " " + str(letter.confidence) + "%",
                                                           QFont('Arial', 4))
-                    self.photoViewer.labels.append(text)
+                    # print(type(text))
+                    # self.worker.signals.addText.emit(text)
                     # Alternates between writing the label on top and under the boxes
                     if i % 2 == 0:
                         text.setPos(x - 5, y - 20)
                     else:
                         text.setPos(x - 5, y + height)
                     i += 1
+            self.confirmClassification()
 
     # Method that saves the image to file
     def saveImage(self):
