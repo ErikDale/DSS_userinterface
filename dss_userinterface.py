@@ -8,7 +8,7 @@ from PyQt5.QtWidgets import QApplication, QWidget, QLabel, QGridLayout, QRubberB
     QMainWindow, QVBoxLayout, QAction, QShortcut, QGraphicsView, QFileDialog
 from PyQt5.QtCore import Qt, QRect, QSize, QPoint, pyqtSignal, QTimer, pyqtSlot, QRunnable, QObject, QThreadPool
 from PyQt5.QtGui import QPixmap, QImage, QKeySequence, QFont, QPainter, QBrush, QPalette, QPen, QMovie
-from threading import Thread
+
 
 import segmentation_to_classifier as segToClass
 
@@ -185,15 +185,17 @@ class PhotoViewer(QtWidgets.QGraphicsView):
         super(PhotoViewer, self).mouseMoveEvent(event)
 
 
+# Class that allows for multithreading in the gui
 class WorkerSignals(QObject):
     finished = pyqtSignal()
     error = pyqtSignal(tuple)
     result = pyqtSignal(object)
     progress = pyqtSignal(int)
-    addItem = pyqtSignal(QtWidgets.QGraphicsRectItem)
-    addText = pyqtSignal(QtWidgets.QGraphicsTextItem)
+    addItem = pyqtSignal(int, int, int, int)
+    addText = pyqtSignal(str, str, int, int, int, int)
 
 
+# Class that allows for multithreading in the gui
 class Worker(QRunnable):
     def __init__(self, fn, *args, **kwargs):
         super(Worker, self).__init__()
@@ -203,9 +205,6 @@ class Worker(QRunnable):
         self.args = args
         self.kwargs = kwargs
         self.signals = WorkerSignals()
-
-        # Add the callback to our kwargs
-        # self.kwargs['progress_callback'] = self.signals.progress
 
     @pyqtSlot()
     def run(self):
@@ -229,6 +228,7 @@ class Worker(QRunnable):
             self.signals.finished.emit()  # Done
 
 
+# Class that represents a timed message box that will appear when classification is done
 class TimerMessageBox(QtWidgets.QMessageBox):
     def __init__(self, title, text, timeout=2, parent=None):
         super(TimerMessageBox, self).__init__(parent)
@@ -348,7 +348,7 @@ class App(QWidget):
         # Creates a button for classifying the image
         self.classifyButton = QtWidgets.QPushButton(self)
         self.classifyButton.setText("Classify Image")
-        self.classifyButton.clicked.connect(self.classify)
+        self.classifyButton.clicked.connect(self.buttonClassify)
         self.classifyButton.setFont(QFont('Arial', 12))
 
         # Puts the button in the grid
@@ -372,48 +372,66 @@ class App(QWidget):
 
         self.setLayout(self.grid)
 
+        # Creates shortcuts to the gui
         self.createShortCuts()
 
+        # Image path of the image that is currently displayed
         self.imagePath = None
+
+        # Allows for multithreading
         self.threadPool = QThreadPool()
         self.worker = Worker(None)
 
-    def addItemToScene(self, rect):
+    # Method that is run in the classify thread when rectangles are added to
+    # the qgraphicsscene. This method needs to be run in the main thread
+    # because PyQt5 does not allow items to be added to the qgraphicsscene in another
+    # thread than the main thread.
+    def addItemToScene(self, x, y, width, height):
+        rect = QtWidgets.QGraphicsRectItem(QtCore.QRectF(x, y, width + 2, height + 2))
         self.photoViewer.scene.addItem(rect)
 
-    def addTextToScene(self, text):
-        self.photoViewer.scene.addText(text)
+    # Method that is run in the classify thread when the labels are added to
+    # the classification rectangles This method needs to be run in the main thread
+    # because PyQt5 does not allow items to be added to the qgraphicsscene in another
+    # thread than the main thread.
+    def addTextToScene(self, label, confidence, i, x, y, height):
+        text = self.photoViewer.scene.addText(label + " " + confidence + "%",
+                                              QFont('Arial', 4))
+        # Alternates between writing the label on top and under the boxes
+        if i % 2 == 0:
+            text.setPos(x - 5, y - 20)
+        else:
+            text.setPos(x - 5, y + height)
+        i += 1
 
-    def startAnimation(self):
-        self.loadingLabel.show()
-        self.movie.start()
-
-    def stopAnimation(self):
+    # Method that is run when the classify thread is done
+    def threadComplete(self):
+        # Stops the loading gif
         self.movie.stop()
         self.loadingLabel.hide()
+        # A message box will appear telling the user that there is no image displayed
+        msg = TimerMessageBox("Classified", "The image has been classified", parent=self.photoViewer)
+        msg.exec_()
 
-    def threadComplete(self):
-        self.stopAnimation()
-
+    # This is the method that runs when the classify button is pressed. It uses multithreading to
+    # let the loading icon spin when the image is being classified.
     def buttonClassify(self):
         if self.photoViewer.empty is True:
             # A message box will appear telling the user that there is no image displayed
             msg = QtWidgets.QMessageBox()
             msg.information(self.photoViewer, "No Image Displayed", "There is no image to classify")
         else:
-            self.startAnimation()
+            # Starts the animation of the loading gif
+            self.loadingLabel.show()
+            self.movie.start()
 
+            # Starts the classify method that classifies the image
             self.worker = Worker(self.classify)
             self.worker.signals.finished.connect(self.threadComplete)
-            # self.worker.signals.addItem.connect(self.addItemToScene)
-            # self.worker.signals.addText.connect(self.addTextToScene)
+            self.worker.signals.addItem.connect(self.addItemToScene)
+            self.worker.signals.addText.connect(self.addTextToScene)
 
             self.threadPool.start(self.worker)
-
-    def confirmClassification(self):
-        # A message box will appear telling the user that there is no image displayed
-        msg = TimerMessageBox("Classified", "The image has been classified", parent=self.photoViewer)
-        msg.exec_()
 
     # Method that classifies an image.
     def classify(self):
@@ -446,35 +464,12 @@ class App(QWidget):
                             self.photoViewer.rubberBandItemGeometry.width() and \
                             self.photoViewer.rubberBandItemGeometry.y() < y < self.photoViewer.rubberBandItemGeometry.y() \
                             + self.photoViewer.rubberBandItemGeometry.height():
-                        rect = QtWidgets.QGraphicsRectItem(QtCore.QRectF(x, y, width + 2, height + 2))
-                        self.photoViewer.scene.addItem(rect)
-                        text = self.photoViewer.scene.addText(str(letter.label) + " " + str(letter.confidence) + "%",
-                                                              QFont('Arial', 4))
-                        # Alternates between writing the label on top and under the boxes
-                        if i % 2 == 0:
-                            text.setPos(x - 5, y - 20)
-                        else:
-                            text.setPos(x - 5, y + height)
-                        i += 1
+                        self.worker.signals.addItem.emit(x, y, width, height)
+                        self.worker.signals.addText.emit(str(letter.label), str(letter.confidence), i, x, y, height)
                 else:
-                    rect = QtWidgets.QGraphicsRectItem(QtCore.QRectF(x, y, width + 2, height + 2))
-                    self.photoViewer.scene.addItem(rect)
-                    # self.worker.signals.addItem.emit(rect)
-                    # text = str(letter.label) + " " + str(letter.confidence) + "%"
-                    # text = QtWidgets.QGraphicsTextItem()
-                    # text.setPlainText(str(letter.label) + " " + str(letter.confidence) + "%")
-                    # text.setFont(QFont('Arial', 4))
-                    text = self.photoViewer.scene.addText(str(letter.label) + " " + str(letter.confidence) + "%",
-                                                          QFont('Arial', 4))
-                    # print(type(text))
-                    # self.worker.signals.addText.emit(text)
-                    # Alternates between writing the label on top and under the boxes
-                    if i % 2 == 0:
-                        text.setPos(x - 5, y - 20)
-                    else:
-                        text.setPos(x - 5, y + height)
-                    i += 1
-            self.confirmClassification()
+                    self.worker.signals.addItem.emit(x, y, width, height)
+                    self.worker.signals.addText.emit(str(letter.label), str(letter.confidence), i, x, y, height)
+                i += 1
 
     # Method that saves the image to file
     def saveImage(self):
