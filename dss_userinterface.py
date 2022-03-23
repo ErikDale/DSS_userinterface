@@ -9,7 +9,6 @@ from PyQt5.QtWidgets import QApplication, QWidget, QLabel, QGridLayout, QRubberB
 from PyQt5.QtCore import Qt, QRect, QSize, QPoint, pyqtSignal, QTimer, pyqtSlot, QRunnable, QObject, QThreadPool
 from PyQt5.QtGui import QPixmap, QImage, QKeySequence, QFont, QPainter, QBrush, QPalette, QPen, QMovie
 
-
 import segmentation_to_classifier as segToClass
 
 
@@ -186,6 +185,8 @@ class PhotoViewer(QtWidgets.QGraphicsView):
 
 
 # Class that allows for multithreading in the gui
+# Heavily inspired by this:
+# https://stackoverflow.com/questions/63393099/how-to-display-a-loading-animated-gif-while-a-code-is-executing-in-backend-of-my
 class WorkerSignals(QObject):
     finished = pyqtSignal()
     error = pyqtSignal(tuple)
@@ -196,6 +197,8 @@ class WorkerSignals(QObject):
 
 
 # Class that allows for multithreading in the gui
+# Heavily inspired by this:
+# https://stackoverflow.com/questions/63393099/how-to-display-a-loading-animated-gif-while-a-code-is-executing-in-backend-of-my
 class Worker(QRunnable):
     def __init__(self, fn, *args, **kwargs):
         super(Worker, self).__init__()
@@ -229,6 +232,8 @@ class Worker(QRunnable):
 
 
 # Class that represents a timed message box that will appear when classification is done
+# Heavily inspired by this:
+# https://stackoverflow.com/questions/40932639/pyqt-messagebox-automatically-closing-after-few-secondshttps://stackoverflow.com/questions/40932639/pyqt-messagebox-automatically-closing-after-few-seconds
 class TimerMessageBox(QtWidgets.QMessageBox):
     def __init__(self, title, text, timeout=2, parent=None):
         super(TimerMessageBox, self).__init__(parent)
@@ -406,6 +411,14 @@ class App(QWidget):
 
     # Method that is run when the classify thread is done
     def threadComplete(self):
+        # Enabling the buttons again
+        self.classifyButton.setDisabled(False)
+        self.browseButton.setDisabled(False)
+        self.removeButton.setDisabled(False)
+        self.cropButton.setDisabled(False)
+        self.uncropButton.setDisabled(False)
+        self.saveButton.setDisabled(False)
+        self.helpButton.setDisabled(False)
         # Stops the loading gif
         self.movie.stop()
         self.loadingLabel.hide()
@@ -421,6 +434,14 @@ class App(QWidget):
             msg = QtWidgets.QMessageBox()
             msg.information(self.photoViewer, "No Image Displayed", "There is no image to classify")
         else:
+            # Disabling the buttons
+            self.classifyButton.setDisabled(True)
+            self.browseButton.setDisabled(True)
+            self.removeButton.setDisabled(True)
+            self.cropButton.setDisabled(True)
+            self.uncropButton.setDisabled(True)
+            self.saveButton.setDisabled(True)
+            self.helpButton.setDisabled(True)
             # Starts the animation of the loading gif
             self.loadingLabel.show()
             self.movie.start()
@@ -656,9 +677,8 @@ class App(QWidget):
             msg.information(self.photoViewer, "Image Displayed", "There is already an image displayed.\nRemove it to "
                                                                  "open another one.")
 
-        # Starts the application
 
-
+# Starts the application
 app = QApplication(sys.argv)
 demo = App()
 demo.show()
