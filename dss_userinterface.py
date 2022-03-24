@@ -4,10 +4,9 @@ from pathlib import Path
 
 import cv2
 from PyQt5 import QtWidgets, QtGui, QtCore
-from PyQt5.QtWidgets import QApplication, QWidget, QLabel, QGridLayout, QRubberBand, QSizePolicy, QScrollArea, \
-    QMainWindow, QVBoxLayout, QAction, QShortcut, QGraphicsView, QFileDialog
-from PyQt5.QtCore import Qt, QRect, QSize, QPoint, pyqtSignal, QTimer, pyqtSlot, QRunnable, QObject, QThreadPool
-from PyQt5.QtGui import QPixmap, QImage, QKeySequence, QFont, QPainter, QBrush, QPalette, QPen, QMovie
+from PyQt5.QtWidgets import QApplication, QWidget, QLabel, QGridLayout, QShortcut, QFileDialog
+from PyQt5.QtCore import Qt, pyqtSignal, pyqtSlot, QRunnable, QObject, QThreadPool
+from PyQt5.QtGui import QPixmap, QKeySequence, QFont, QMovie
 
 import segmentation_to_classifier as segToClass
 
@@ -211,16 +210,13 @@ class Worker(QRunnable):
 
     @pyqtSlot()
     def run(self):
-        '''
+        """
         Initialise the runner function with passed args, kwargs.
-        '''
+        """
 
         # Retrieve args/kwargs here; and fire processing using them
         try:
             result = self.fn(*self.args, **self.kwargs)
-
-            # QtCore.QThread.msleep(5000)  # +++ !!!!!!!!!!!!!!!!!!!!!!
-
         except:
             traceback.print_exc()
             exctype, value = sys.exc_info()[:2]
@@ -535,7 +531,7 @@ class App(QWidget):
         msg = QtWidgets.QMessageBox()
         msg.information(self, "Help", "Shortcuts: \n-Exit app: Ctrl+Q\n-Open images: Ctrl+O\n-Remove image: "
                                       "Ctrl+R\n-Crop image: Ctrl+W\n-Open help menu: Ctrl+H\n-Uncrop image: "
-                                      "Ctrl+U\n-Save image: Ctrl+S")
+                                      "Ctrl+U\n-Save image: Ctrl+S\n-Classify image: Ctrl+C")
 
     # Method that creates shortcuts for the user
     def createShortCuts(self):
@@ -559,6 +555,9 @@ class App(QWidget):
 
         saveShort = QShortcut(QKeySequence("Ctrl+S"), self)
         saveShort.activated.connect(self.saveImage)
+
+        classifyShort = QShortcut(QKeySequence("Ctrl+C"), self)
+        classifyShort.activated.connect(self.buttonClassify)
 
     # Method that sets rubberBool to true, so that the rubberBand is shown
     def rubberBandOn(self):
