@@ -25,16 +25,16 @@ $ git clone https://github.com/ErikDale/DSS_userinterface.git
 ```
 
 #### Open Anaconda Prompt
-Once you have installed Anaconda you should be able to press the Windows button and search for Anaconda Prompty: 
+Once you have installed Anaconda you should be able to press the Windows button and search for Anaconda Prompt: 
 
 ![](images/anaconda.jpg "Anaconda Prompt")
 
 Once you have opened that you should navigate to the repo. You can do this by using: 
 ```
-cd <full_path to the cloned the repo>
+cd <full_path to the cloned repo>
 ```
 #### Use Pip Install
-When you have navigated to the cloned the repo you should use: 
+When you have navigated to the cloned repo you should use: 
 ```
 pip install -r requirements.txt
 ```
