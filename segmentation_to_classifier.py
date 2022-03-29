@@ -29,10 +29,10 @@ class Segmentor:
     def __init__(self):
         return
 
-    def Segment(self, image):
+    def segmentClearBackground(self, image):
         # Necessary for running pytesseract
         # Info on how to get it running: https://github.com/tesseract-ocr/tesseract/blob/main/README.md
-        pytesseract.pytesseract.tesseract_cmd = r'.\tesseract\tesseract.exe'
+        pytesseract.pytesseract.tesseract_cmd = r'tesseract\tesseract.exe'
 
         # Reads image of scroll
         img = image
@@ -43,14 +43,22 @@ class Segmentor:
         else:
             gray = img
 
+        clahe = cv2.createCLAHE(clipLimit=1.0, tileGridSize=(80, 80))
+        equalized = clahe.apply(gray)
+
         # otsu thresholding
-        _, otsu = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+        _, otsu = cv2.threshold(equalized, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+
+        # closing
+        invertedImg = cv2.bitwise_not(otsu)
+
+        kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))
+        closedImg = cv2.morphologyEx(invertedImg, cv2.MORPH_CLOSE, kernel)
+
+        invertedBack = cv2.bitwise_not(closedImg)
 
         # Denoises the otsu image
-        deNoiseOtsu = cv2.fastNlMeansDenoising(otsu, h=60.0, templateWindowSize=7, searchWindowSize=21)
-
-        # Incremented ID for cropped images
-        id = 0
+        deNoiseOtsu = cv2.fastNlMeansDenoising(invertedBack, h=60.0, templateWindowSize=7, searchWindowSize=21)
 
         ## Crops the images around the letters/words
         # Saves the height and width of the images
@@ -101,6 +109,93 @@ class Segmentor:
         # Saves the image with all the rectangles
         return segmentedLetters
 
+    def segmentVariedBackground(self, image):
+        # Necessary for running pytesseract
+        # Info on how to get it running: https://github.com/tesseract-ocr/tesseract/blob/main/README.md
+        pytesseract.pytesseract.tesseract_cmd = r'tesseract\tesseract.exe'
+
+        # Reads image of scroll
+        img = image
+
+        # Grayscales image
+        if len(img.shape) == 3:
+            gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+        else:
+            gray = img
+
+        # Adaptive binarization
+        binarizeIm = cv2.adaptiveThreshold(src=gray, maxValue=255, adaptiveMethod=cv2.ADAPTIVE_THRESH_MEAN_C,
+                                           thresholdType=cv2.THRESH_BINARY, blockSize=39, C=15)
+
+        # Opening
+        invertedImg = cv2.bitwise_not(binarizeIm)
+
+        kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))
+
+        openedImg = cv2.morphologyEx(invertedImg, cv2.MORPH_OPEN, kernel)
+
+        invertedBack = cv2.bitwise_not(openedImg)
+
+        # Closing
+        invertedImg = cv2.bitwise_not(invertedBack)
+
+        kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))
+        closedImg = cv2.morphologyEx(invertedImg, cv2.MORPH_CLOSE, kernel)
+
+        invertedBack = cv2.bitwise_not(closedImg)
+
+        # Noise removal
+        deNoiseOtsu = cv2.fastNlMeansDenoising(invertedBack, h=60.0, templateWindowSize=7, searchWindowSize=21)
+
+        ## Crops the images around the letters/words
+        # Saves the height and width of the images
+        hImg, wImg = deNoiseOtsu.shape
+
+        # array for the segmented letters
+        segmentedLetters = []
+
+        # Makes a box around each letter/word on the scroll
+        boxes = pytesseract.image_to_boxes(deNoiseOtsu, lang="heb")
+
+        # For each box
+        for b in boxes.splitlines():
+            # Splits the values of the box into an array
+            b = b.split(' ')
+            # Save the coordinates of the box:
+            # x = Distance between the top left corner of the box to the left frame
+            # y = Distance between the top of the box to the bottom frame
+            # w = Distance between the right side of the box to the left frame
+            # h = Distance between the bottom of the box to the bottom frame
+            x, y, w, h = int(b[1]), int(b[2]), int(b[3]), int(b[4])
+
+            # Crop the image so that we only get the letter/word
+            # Structure image[rows, col]
+            crop = binarizeIm[(hImg - h):(hImg - y), x:w]
+
+            # Height and width of the cropped image
+            hBox, wBox = crop.shape
+
+            # Checks if the crop is too small or too large
+            if hBox != 0 and wBox != 0:
+                if hBox > (1 / hBox * 100) and wBox > (1 / hBox * 100):
+                    # Saves the cropped letter as an object
+                    croppedLetter = Letter(crop, x, y, w, h)
+
+                    # appends the cropped letter to the array
+                    segmentedLetters.append(croppedLetter)
+                    # print("Successfully appended letter")
+
+                    # Creates a blue rectangle over the letter/image
+                    cv2.rectangle(img, (x, hImg - y), (w, hImg - h), (255, 0, 0), 1)
+                else:
+                    # print("Image to small or to large.")
+
+                    # Creates a red rectangle over it
+                    cv2.rectangle(img, (x, hImg - y), (w, hImg - h), (0, 0, 255), 1)
+
+        # Saves the image with all the rectangles
+        return segmentedLetters
+
 
 class Classifier:
     def __init__(self, model, input_size=100):
@@ -123,7 +218,10 @@ class Classifier:
 
             # Fix the dimensions of the image
             new_image = Image.new(image.mode, (100, 100), 255)
-            x, y = int((100 / 2)) - int(image.width / 2), int(100) - int(image.height)
+            # For sigmoid+.model
+            # x, y = int((100 / 2)) - int(image.width / 2), int(100) - int(image.height)
+            # For default.model
+            x, y = int((100 / 2)) - int(image.width / 2), int(100 / 2) - int(image.height / 2)
             new_image.paste(image, (x, y))
 
             #  Converts back into numpy array

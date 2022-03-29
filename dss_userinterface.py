@@ -63,6 +63,15 @@ class PhotoViewer(QtWidgets.QGraphicsView):
         self.scene.addItem(self.photo)
         pixmap = QPixmap()
         self.photo.setPixmap(pixmap)
+        # Creates the rubberband
+        self.rubberBandItem = QtWidgets.QRubberBand(
+            QtWidgets.QRubberBand.Rectangle
+        )
+        self.rubberBandItemGeometry = None
+        item = self.scene.addWidget(self.rubberBandItem)
+        item.setZValue(-1)
+        self.draggable = False
+        self.rubberBandItem.hide()
 
     # Method to check if pixmap has image or not
     def hasPhoto(self):
@@ -249,6 +258,22 @@ class TimerMessageBox(QtWidgets.QMessageBox):
     def closeEvent(self, event):
         self.timer.stop()
         event.accept()
+
+
+'''class GroupBox(QtWidgets.QWidget):
+    def __init__(self):
+        super().__init__()
+        layout = QtWidgets.QGridLayout(self)
+        groupbox = QtWidgets.QGroupBox(self, "Algorithm to use", parent=self, checkable=False)
+        layout.addWidget(groupbox)
+
+        hbox = QtWidgets.QHBoxLayout()
+        groupbox.setLayout(hbox)
+        good_radiobutton = QtWidgets.QRadioButton("Good Picker")
+        naive_radiobutton = QtWidgets.QRadioButton("Naive Picker")
+        hbox.addWidget(good_radiobutton, alignment=QtCore.Qt.AlignTop)
+        hbox.addWidget(naive_radiobutton, alignment=QtCore.Qt.AlignTop)
+        hbox.addStretch()'''
 
 
 # Class that represents the application
@@ -462,9 +487,9 @@ class App(QWidget):
             # the letters
             segmenter = segToClass.Segmentor()
             img = cv2.imread(self.imagePath)
-            segmentedLetters = segmenter.Segment(img)
+            segmentedLetters = segmenter.segmentClearBackground(img)
 
-            classifier = segToClass.Classifier("./sigmoid+.model")
+            classifier = segToClass.Classifier("./default.model")
             resultsFromClassifier = classifier.Classify(segmentedLetters)
 
             # Draws the squares around the letters
