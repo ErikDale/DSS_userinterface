@@ -260,6 +260,8 @@ class TimerMessageBox(QtWidgets.QMessageBox):
         event.accept()
 
 
+# Class that represents radiobuttons where the user can change between two different
+# image enhancement processes for their image
 class GroupBox(QtWidgets.QWidget):
     def __init__(self):
         super().__init__()
