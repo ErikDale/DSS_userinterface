@@ -29,6 +29,7 @@ class Segmentor:
     def __init__(self):
         return
 
+    # Method that is run if the background in the image isnt varied
     def segmentClearBackground(self, image):
         # Necessary for running pytesseract
         # Info on how to get it running: https://github.com/tesseract-ocr/tesseract/blob/main/README.md
@@ -43,6 +44,7 @@ class Segmentor:
         else:
             gray = img
 
+        # Does adaptive histogram equalization
         clahe = cv2.createCLAHE(clipLimit=1.0, tileGridSize=(80, 80))
         equalized = clahe.apply(gray)
 
@@ -57,7 +59,7 @@ class Segmentor:
 
         invertedBack = cv2.bitwise_not(closedImg)
 
-        # Denoises the otsu image
+        # Denoises the closed otsu image
         deNoiseOtsu = cv2.fastNlMeansDenoising(invertedBack, h=60.0, templateWindowSize=7, searchWindowSize=21)
 
         ## Crops the images around the letters/words
@@ -109,6 +111,7 @@ class Segmentor:
         # Saves the image with all the rectangles
         return segmentedLetters
 
+    # Method that is run if the background in the image is varied
     def segmentVariedBackground(self, image):
         # Necessary for running pytesseract
         # Info on how to get it running: https://github.com/tesseract-ocr/tesseract/blob/main/README.md

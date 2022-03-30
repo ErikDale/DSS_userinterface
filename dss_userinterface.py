@@ -260,20 +260,33 @@ class TimerMessageBox(QtWidgets.QMessageBox):
         event.accept()
 
 
-'''class GroupBox(QtWidgets.QWidget):
+class GroupBox(QtWidgets.QWidget):
     def __init__(self):
         super().__init__()
-        layout = QtWidgets.QGridLayout(self)
-        groupbox = QtWidgets.QGroupBox(self, "Algorithm to use", parent=self, checkable=False)
-        layout.addWidget(groupbox)
+        self.selectedYes = False
+        self.layout = QtWidgets.QGridLayout(self)
+        self.groupbox = QtWidgets.QGroupBox("Does the DSS image have varying background?")
+        self.layout.addWidget(self.groupbox)
 
-        hbox = QtWidgets.QHBoxLayout()
-        groupbox.setLayout(hbox)
-        good_radiobutton = QtWidgets.QRadioButton("Good Picker")
-        naive_radiobutton = QtWidgets.QRadioButton("Naive Picker")
-        hbox.addWidget(good_radiobutton, alignment=QtCore.Qt.AlignTop)
-        hbox.addWidget(naive_radiobutton, alignment=QtCore.Qt.AlignTop)
-        hbox.addStretch()'''
+        self.hbox = QtWidgets.QHBoxLayout()
+        self.groupbox.setLayout(self.hbox)
+        self.yesRadiobutton = QtWidgets.QRadioButton("Yes")
+        self.noRadiobutton = QtWidgets.QRadioButton("No")
+
+        self.yesRadiobutton.toggled.connect(self.yesSelected)
+        self.noRadiobutton.toggled.connect(self.noSelected)
+
+        self.hbox.addWidget(self.yesRadiobutton, alignment=QtCore.Qt.AlignTop)
+        self.hbox.addWidget(self.noRadiobutton, alignment=QtCore.Qt.AlignTop)
+        self.hbox.addStretch()
+        self.layout.setColumnStretch(1, 1)
+        self.layout.setRowStretch(1, 1)
+
+    def yesSelected(self):
+        self.selectedYes = True
+
+    def noSelected(self):
+        self.selectedYes = False
 
 
 # Class that represents the application
@@ -316,12 +329,16 @@ class App(QWidget):
 
         self.grid.addWidget(self.loadingLabel, 1, 0)
 
+        self.groupBox = GroupBox()
+        self.grid.addWidget(self.groupBox, 2, 0, 1, 2)
+        self.groupBox.hide()
+
         self.zoomLabel = self.photoViewer.zoomLabel
         self.zoomLabel.setAlignment(Qt.AlignRight)
         self.grid.addWidget(self.zoomLabel, 1, 1)
 
         # Adds the photoViewer in the grid
-        self.grid.addWidget(self.photoViewer, 2, 0, 1, 2)
+        self.grid.addWidget(self.photoViewer, 3, 0, 1, 2)
 
         # Creates a button for opening the file explorer to upload an image
         self.browseButton = QtWidgets.QPushButton(self)
@@ -330,7 +347,7 @@ class App(QWidget):
         self.browseButton.setFont(QFont('Arial', 12))
 
         # Puts the button in the grid
-        self.grid.addWidget(self.browseButton, 3, 0)
+        self.grid.addWidget(self.browseButton, 4, 0)
 
         # Creates a button for removing the image
         self.removeButton = QtWidgets.QPushButton(self)
@@ -339,7 +356,7 @@ class App(QWidget):
         self.removeButton.setFont(QFont('Arial', 12))
 
         # Puts the button in the grid
-        self.grid.addWidget(self.removeButton, 3, 1)
+        self.grid.addWidget(self.removeButton, 4, 1)
 
         # Creates an empty label
         self.emptyLabel = QLabel()
@@ -355,12 +372,12 @@ class App(QWidget):
         self.uncropButton.setFont(QFont('Arial', 12))
         self.uncropButton.clicked.connect(self.uncropImage)
 
-        self.grid.addWidget(self.uncropButton, 4, 1)
+        self.grid.addWidget(self.uncropButton, 5, 1)
 
         self.grid.setRowStretch(0, 3)
-        self.grid.setRowStretch(2, 18)
-        self.grid.setRowStretch(3, 1)
+        self.grid.setRowStretch(3, 18)
         self.grid.setRowStretch(4, 1)
+        self.grid.setRowStretch(5, 1)
 
         # Creates a button for cropping the image
         self.cropButton = QtWidgets.QPushButton(self)
@@ -369,7 +386,7 @@ class App(QWidget):
         self.cropButton.setFont(QFont('Arial', 12))
 
         # Puts the button in the grid
-        self.grid.addWidget(self.cropButton, 4, 0)
+        self.grid.addWidget(self.cropButton, 5, 0)
 
         # Creates a button for classifying the image
         self.classifyButton = QtWidgets.QPushButton(self)
@@ -378,7 +395,7 @@ class App(QWidget):
         self.classifyButton.setFont(QFont('Arial', 12))
 
         # Puts the button in the grid
-        self.grid.addWidget(self.classifyButton, 5, 0)
+        self.grid.addWidget(self.classifyButton, 6, 0)
 
         # Creates a button for saving the image
         self.saveButton = QtWidgets.QPushButton(self)
@@ -387,14 +404,14 @@ class App(QWidget):
         self.saveButton.setFont(QFont('Arial', 12))
 
         # Puts the button in the grid
-        self.grid.addWidget(self.saveButton, 5, 1)
+        self.grid.addWidget(self.saveButton, 6, 1)
 
         # Creates a help button that opens a help menu for the user
         self.helpButton = QtWidgets.QPushButton()
         self.helpButton.setText("Help")
         self.helpButton.setFont(QFont('Arial', 12))
         self.helpButton.clicked.connect(self.helpBox)
-        self.grid.addWidget(self.helpButton, 6, 0, 1, 2)
+        self.grid.addWidget(self.helpButton, 7, 0, 1, 2)
 
         self.setLayout(self.grid)
 
@@ -487,7 +504,13 @@ class App(QWidget):
             # the letters
             segmenter = segToClass.Segmentor()
             img = cv2.imread(self.imagePath)
-            segmentedLetters = segmenter.segmentClearBackground(img)
+            segmentedLetters = []
+
+            # Checking if the "yes" radiobutton is toggled on or off
+            if self.groupBox.selectedYes:
+                segmentedLetters = segmenter.segmentVariedBackground(img)
+            else:
+                segmentedLetters = segmenter.segmentClearBackground(img)
 
             classifier = segToClass.Classifier("./default.model")
             resultsFromClassifier = classifier.Classify(segmentedLetters)
@@ -606,7 +629,7 @@ class App(QWidget):
                 # Opens the file explorer in
                 fileName = QtWidgets.QFileDialog.getOpenFileName(self, 'Open file', pathStr,
                                                                  'JPG files (*.jpg);;PNG files (*.png)')
-            # If the computer doesn't have a file like that it will open the file explorer in the %HOMEPATH%
+            # If the computer doesn't have a directory like that it will open the file explorer in the %HOMEPATH%
             else:
                 fileName = QtWidgets.QFileDialog.getOpenFileName(self, 'Open file', str(path),
                                                                  'JPG files (*.jpg);;PNG files (*.png)')
@@ -623,7 +646,10 @@ class App(QWidget):
                 self.fileNameLabel.setText("Filename: " + pathList[-1])
 
                 # Sets the zoomlevel of the image
-                # self.zoomLabel.setText("Zoom level: " + str(self.photoViewer.zoomLevel) + "%")
+                self.photoViewer.zoomLabel.setText("Zoom level: " + str(int(self.photoViewer.zoomLevel)) + "%")
+
+                # Displays the group box
+                self.groupBox.show()
         else:
             # A message box will appear telling the user that there is already an image displayed
             msg = QtWidgets.QMessageBox()
@@ -649,6 +675,8 @@ class App(QWidget):
             self.photoViewer.photo.setPos(0, 0)
 
             self.zoomLabel.setText("")
+            # Hides the group box
+            self.groupBox.hide()
 
     # Checks if the file that enters the drop zone is an image
     def dragEnterEvent(self, event):
@@ -686,7 +714,10 @@ class App(QWidget):
                     self.fileNameLabel.setText("Filename: " + pathList[-1])
 
                     # Sets the zoomlevel of the image
-                    # self.zoomLabel.setText("Zoom level: " + str(self.photoViewer.zoomLevel) + "%")
+                    self.photoViewer.zoomLabel.setText("Zoom level: " + str(int(self.photoViewer.zoomLevel)) + "%")
+
+                    # Displays the group box
+                    self.groupBox.show()
                     event.accept()
                 else:
                     event.ignore()
