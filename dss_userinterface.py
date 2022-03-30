@@ -427,6 +427,8 @@ class App(QWidget):
         self.threadPool = QThreadPool()
         self.worker = Worker(None)
 
+        self.segmentedLetters = []
+
     # Method that is run in the classify thread when rectangles are added to
     # the qgraphicsscene. This method needs to be run in the main thread
     # because PyQt5 does not allow items to be added to the qgraphicsscene in another
@@ -462,9 +464,14 @@ class App(QWidget):
         # Stops the loading gif
         self.movie.stop()
         self.loadingLabel.hide()
-        # A message box will appear telling the user that there is no image displayed
-        msg = TimerMessageBox("Classified", "The image has been classified", parent=self.photoViewer)
-        msg.exec_()
+        if len(self.segmentedLetters) == 0:
+            # A message box will appear telling the user that there is no image displayed
+            msg = TimerMessageBox("No Letters Detected", "No hebrew letters were detected", parent=self.photoViewer)
+            msg.exec_()
+        else:
+            # A message box will appear telling the user that there is no image displayed
+            msg = TimerMessageBox("Classified", "The image has been classified", parent=self.photoViewer)
+            msg.exec_()
 
     # This is the method that runs when the classify button is pressed. It uses multithreading to
     # let the loading icon spin when the image is being classified.
@@ -506,16 +513,16 @@ class App(QWidget):
             # the letters
             segmenter = segToClass.Segmentor()
             img = cv2.imread(self.imagePath)
-            segmentedLetters = []
 
+            self.segmentedLetters.clear()
             # Checking if the "yes" radiobutton is toggled on or off
             if self.groupBox.selectedYes:
-                segmentedLetters = segmenter.segmentVariedBackground(img)
+                self.segmentedLetters = segmenter.segmentVariedBackground(img)
             else:
-                segmentedLetters = segmenter.segmentClearBackground(img)
+                self.segmentedLetters = segmenter.segmentClearBackground(img)
 
             classifier = segToClass.Classifier("./default.model")
-            resultsFromClassifier = classifier.Classify(segmentedLetters)
+            resultsFromClassifier = classifier.Classify(self.segmentedLetters)
 
             # Draws the squares around the letters
             i = 0
