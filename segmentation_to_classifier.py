@@ -7,6 +7,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as nnf
 from PIL import Image
+import image_straighten as imgStraighten
 
 
 # Object for letters that contain the image, the coordinates, and the classification.
@@ -25,9 +26,172 @@ class Letter:
         self.confidence = confidence
 
 
+# Returns the confidence value of a letter as a boolean.
+'''def classLetterChecker(image):
+    confidenceValue = machinelearningFunction(image)
+    if confidenceValue > 80:
+        return False
+    else:
+        return True
+
+
+# Straightens the letters in an image
+def image_straighten(image):
+    img = image
+
+    thresh = cv2.threshold(img, 127, 255, 1)[1]
+
+    imgStraighten.deskew(thresh)
+    sheared_img = imgStraighten.unshear(thresh)
+
+    ret, thresh = cv2.threshold(sheared_img, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
+
+    return thresh
+
+
+# Splits a word into letters
+def word_splitter(word):
+    image = image_straighten(word)
+
+    size = np.size(image)
+    skel = np.zeros(image.shape, np.uint8)
+
+    element = cv2.getStructuringElement(cv2.MORPH_CROSS, (3, 3))
+
+    # Skeletonizes the image
+    while True:
+        open = cv2.morphologyEx(image, cv2.MORPH_OPEN, element)
+        temp = cv2.subtract(image, open)
+
+        eroded = cv2.erode(image, element)
+        skel = cv2.bitwise_or(skel, temp)
+        image = eroded.copy()
+
+        if cv2.countNonZero(image) == 0:
+            break
+
+    hSkel, wSkel = skel.shape
+
+    # array for sum of vertical pixels
+    amountVertPixels = []
+
+    # counts the sum of vertical pixels in image
+    for i in range(wSkel):
+        colPixels = int((sum(skel[:, i])) / 255)
+        amountVertPixels.append(colPixels)
+
+    minLetterWidth = 15
+    segPoints = []
+
+    index = len(amountVertPixels) - 1
+
+    # Finds the segmentation points with the sum of vertical pixels
+    while index > 0:
+        if amountVertPixels[index] > 0:
+            for j in range(index, -1, -1):
+                if amountVertPixels[j] < 1:
+                    if amountVertPixels[j - 1] < 1:
+                        if (index - j) > minLetterWidth:
+                            segPoints.append(j)
+                            index = j
+                            break
+                        else:
+                            index = j
+                            break
+                if amountVertPixels[j] > 5:
+                    if (index - j) > minLetterWidth:
+                        segPoints.append(j)
+                        index = j
+                        break
+        index -= 1
+
+    # crops the letter based on the segmentation point
+    imageID = 1
+    segmentationIndex = len(amountVertPixels)
+    segmentedLettersInWord = []
+    for i in segPoints:
+        extend_image = 2
+        # if the segmentation is on the right side of the image
+        if segmentationIndex == len(amountVertPixels):
+            cropped_image = word[:, i:segmentationIndex]
+            while classLetterChecker(cropped_image):
+                # extends the image to the left until sufficient classification value
+                cropped_image = word[:, i - extend_image:segmentationIndex]
+                extend_image += 2
+            cropped_letter = Letter(cropped_image, i, None, segmentationIndex, None, None)
+            segmentedLettersInWord.append(cropped_letter)
+        # if the segmentation point is on the left side of the image
+        elif i < 2:
+            cropped_image = word[:, 0:segmentationIndex]
+            while classLetterChecker(cropped_image):
+                # extends the image to the right until sufficient classification value
+                cropped_image = word[:, 0:segmentationIndex + extend_image]
+                extend_image += 2
+            cropped_letter = Letter(cropped_image, i, None, segmentationIndex, None, None)
+            segmentedLettersInWord.append(cropped_letter)
+        # if the segmentation point is in the middle of the image
+        else:
+            croppedImage = word[:, i - 2:segmentationIndex + 2]
+            while classLetterChecker(croppedImage):
+                # Makes sure the crop doesn't go out of bounds
+                if i - extend_image < 0:
+                    start_crop_value = 0
+                else:
+                    start_crop_value = i - extend_image
+                # extends the crop on both sides
+                cropped_image = word[:, start_crop_value:segmentationIndex + extend_image]
+                extend_image += 2
+            cropped_letter = Letter(cropped_image, i, None, segmentationIndex, None, None)
+            segmentedLettersInWord.append(cropped_letter)
+        segmentationIndex = i
+        imageID += 1
+    return segmentedLettersInWord'''
+
+
 class Segmentor:
     def __init__(self):
         return
+
+    def segmentLetters(self, image):
+        ## Crops the images around the letters/words
+        # Saves the height and width of the images
+        hImg, wImg = image.shape
+
+        # array for the segmented letters
+        segmentedLetters = []
+
+        # Makes a box around each letter/word on the scroll
+        boxes = pytesseract.image_to_boxes(image, lang="heb")
+
+        # For each box
+        for b in boxes.splitlines():
+            # Splits the values of the box into an array
+            b = b.split(' ')
+            # Save the coordinates of the box:
+            # x = Distance between the top left corner of the box to the left frame
+            # y = Distance between the top of the box to the bottom frame
+            # w = Distance between the right side of the box to the left frame
+            # h = Distance between the bottom of the box to the bottom frame
+            x, y, w, h = int(b[1]), int(b[2]), int(b[3]), int(b[4])
+
+            # Crop the image so that we only get the letter/word
+            # Structure image[rows, col]
+            crop = image[(hImg - h):(hImg - y), x:w]
+
+            # Height and width of the cropped image
+            hBox, wBox = crop.shape
+
+            # Checks if the crop is too small or too large
+            if hBox != 0 and wBox != 0:
+                if hBox > (1 / hBox * 100) and wBox > (1 / hBox * 100):
+                    # Saves the cropped letter as an object
+                    croppedLetter = Letter(crop, x, y, w, h)
+
+                    # appends the cropped letter to the array
+                    segmentedLetters.append(croppedLetter)
+
+        # Saves the image with all the rectangles
+        return segmentedLetters
 
     # Method that is run if the background in the image isnt varied
     def segmentClearBackground(self, image):
@@ -62,54 +226,7 @@ class Segmentor:
         # Denoises the closed otsu image
         deNoiseOtsu = cv2.fastNlMeansDenoising(invertedBack, h=60.0, templateWindowSize=7, searchWindowSize=21)
 
-        ## Crops the images around the letters/words
-        # Saves the height and width of the images
-        hImg, wImg = deNoiseOtsu.shape
-
-        # array for the segmented letters
-        segmentedLetters = []
-
-        # Makes a box around each letter/word on the scroll
-        boxes = pytesseract.image_to_boxes(deNoiseOtsu, lang="heb")
-
-        # For each box
-        for b in boxes.splitlines():
-            # Splits the values of the box into an array
-            b = b.split(' ')
-            # Save the coordinates of the box:
-            # x = Distance between the top left corner of the box to the left frame
-            # y = Distance between the top of the box to the bottom frame
-            # w = Distance between the right side of the box to the left frame
-            # h = Distance between the bottom of the box to the bottom frame
-            x, y, w, h = int(b[1]), int(b[2]), int(b[3]), int(b[4])
-
-            # Crop the image so that we only get the letter/word
-            # Structure image[rows, col]
-            crop = otsu[(hImg - h):(hImg - y), x:w]
-
-            # Height and width of the cropped image
-            hBox, wBox = crop.shape
-
-            # Checks if the crop is too small or too large
-            if hBox != 0 and wBox != 0:
-                if hBox > (1 / hBox * 100) and wBox > (1 / hBox * 100):
-                    # Saves the cropped letter as an object
-                    croppedLetter = Letter(crop, x, y, w, h)
-
-                    # appends the cropped letter to the array
-                    segmentedLetters.append(croppedLetter)
-                    # print("Successfully appended letter")
-
-                    # Creates a blue rectangle over the letter/image
-                    cv2.rectangle(img, (x, hImg - y), (w, hImg - h), (255, 0, 0), 1)
-                else:
-                    # print("Image to small or to large.")
-
-                    # Creates a red rectangle over it
-                    cv2.rectangle(img, (x, hImg - y), (w, hImg - h), (0, 0, 255), 1)
-
-        # Saves the image with all the rectangles
-        return segmentedLetters
+        return self.segmentLetters(deNoiseOtsu)
 
     # Method that is run if the background in the image is varied
     def segmentVariedBackground(self, image):
@@ -150,54 +267,7 @@ class Segmentor:
         # Noise removal
         deNoiseOtsu = cv2.fastNlMeansDenoising(invertedBack, h=60.0, templateWindowSize=7, searchWindowSize=21)
 
-        ## Crops the images around the letters/words
-        # Saves the height and width of the images
-        hImg, wImg = deNoiseOtsu.shape
-
-        # array for the segmented letters
-        segmentedLetters = []
-
-        # Makes a box around each letter/word on the scroll
-        boxes = pytesseract.image_to_boxes(deNoiseOtsu, lang="heb")
-
-        # For each box
-        for b in boxes.splitlines():
-            # Splits the values of the box into an array
-            b = b.split(' ')
-            # Save the coordinates of the box:
-            # x = Distance between the top left corner of the box to the left frame
-            # y = Distance between the top of the box to the bottom frame
-            # w = Distance between the right side of the box to the left frame
-            # h = Distance between the bottom of the box to the bottom frame
-            x, y, w, h = int(b[1]), int(b[2]), int(b[3]), int(b[4])
-
-            # Crop the image so that we only get the letter/word
-            # Structure image[rows, col]
-            crop = binarizeIm[(hImg - h):(hImg - y), x:w]
-
-            # Height and width of the cropped image
-            hBox, wBox = crop.shape
-
-            # Checks if the crop is too small or too large
-            if hBox != 0 and wBox != 0:
-                if hBox > (1 / hBox * 100) and wBox > (1 / hBox * 100):
-                    # Saves the cropped letter as an object
-                    croppedLetter = Letter(crop, x, y, w, h)
-
-                    # appends the cropped letter to the array
-                    segmentedLetters.append(croppedLetter)
-                    # print("Successfully appended letter")
-
-                    # Creates a blue rectangle over the letter/image
-                    cv2.rectangle(img, (x, hImg - y), (w, hImg - h), (255, 0, 0), 1)
-                else:
-                    # print("Image to small or to large.")
-
-                    # Creates a red rectangle over it
-                    cv2.rectangle(img, (x, hImg - y), (w, hImg - h), (0, 0, 255), 1)
-
-        # Saves the image with all the rectangles
-        return segmentedLetters
+        return self.segmentLetters(deNoiseOtsu)
 
 
 class Classifier:
