@@ -7,7 +7,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as nnf
 from PIL import Image
-import image_straighten as imgStraighten
+# import image_straighten as imgStraighten
 
 
 # Object for letters that contain the image, the coordinates, and the classification.
@@ -153,7 +153,11 @@ class Segmentor:
         return
 
     def segmentLetters(self, image):
-        ## Crops the images around the letters/words
+        # Necessary for running pytesseract
+        # Info on how to get it running: https://github.com/tesseract-ocr/tesseract/blob/main/README.md
+        pytesseract.pytesseract.tesseract_cmd = r'tesseract\tesseract.exe'
+
+        # Crops the images around the letters/words
         # Saves the height and width of the images
         hImg, wImg = image.shape
 
@@ -195,10 +199,6 @@ class Segmentor:
 
     # Method that is run if the background in the image isnt varied
     def segmentClearBackground(self, image):
-        # Necessary for running pytesseract
-        # Info on how to get it running: https://github.com/tesseract-ocr/tesseract/blob/main/README.md
-        pytesseract.pytesseract.tesseract_cmd = r'tesseract\tesseract.exe'
-
         # Reads image of scroll
         img = image
 
@@ -230,10 +230,6 @@ class Segmentor:
 
     # Method that is run if the background in the image is varied
     def segmentVariedBackground(self, image):
-        # Necessary for running pytesseract
-        # Info on how to get it running: https://github.com/tesseract-ocr/tesseract/blob/main/README.md
-        pytesseract.pytesseract.tesseract_cmd = r'tesseract\tesseract.exe'
-
         # Reads image of scroll
         img = image
 
