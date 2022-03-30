@@ -278,6 +278,8 @@ class GroupBox(QtWidgets.QWidget):
         self.yesRadiobutton.toggled.connect(self.yesSelected)
         self.noRadiobutton.toggled.connect(self.noSelected)
 
+        self.noRadiobutton.toggle()
+
         self.hbox.addWidget(self.yesRadiobutton, alignment=QtCore.Qt.AlignTop)
         self.hbox.addWidget(self.noRadiobutton, alignment=QtCore.Qt.AlignTop)
         self.hbox.addStretch()
@@ -461,6 +463,7 @@ class App(QWidget):
         self.uncropButton.setDisabled(False)
         self.saveButton.setDisabled(False)
         self.helpButton.setDisabled(False)
+        self.groupBox.setDisabled(False)
         # Stops the loading gif
         self.movie.stop()
         self.loadingLabel.hide()
@@ -489,6 +492,7 @@ class App(QWidget):
             self.uncropButton.setDisabled(True)
             self.saveButton.setDisabled(True)
             self.helpButton.setDisabled(True)
+            self.groupBox.setDisabled(True)
             # Starts the animation of the loading gif
             self.loadingLabel.show()
             self.movie.start()
