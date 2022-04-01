@@ -7,7 +7,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as nnf
 from PIL import Image
-# import image_straighten as imgStraighten
+import image_straighten as imgStraighten
 
 
 # Object for letters that contain the image, the coordinates, and the classification.
@@ -27,12 +27,13 @@ class Letter:
 
 
 # Returns the confidence value of a letter as a boolean.
-'''def classLetterChecker(image):
-    confidenceValue = machinelearningFunction(image)
-    if confidenceValue > 80:
-        return False
-    else:
+def classLetterChecker(image):
+    classifier = Classifier("./default.model")
+    _, confidence_value = classifier.SimplyClassify(image)
+    if confidence_value < 60:
         return True
+    else:
+        return False
 
 
 # Straightens the letters in an image
@@ -47,6 +48,17 @@ def image_straighten(image):
     ret, thresh = cv2.threshold(sheared_img, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
 
     return thresh
+
+
+# Removes the white space over a letter
+def image_cropper(img):
+    edged = cv2.Canny(img, 30, 200)
+
+    coords = cv2.findNonZero(edged)
+    x, y, w, h = cv2.boundingRect(coords)
+    crop = img[y:y + h, :]
+
+    return crop
 
 
 # Splits a word into letters
@@ -114,6 +126,7 @@ def word_splitter(word):
         # if the segmentation is on the right side of the image
         if segmentationIndex == len(amountVertPixels):
             cropped_image = word[:, i:segmentationIndex]
+            cropped_image = image_cropper(cropped_image)
             while classLetterChecker(cropped_image):
                 # extends the image to the left until sufficient classification value
                 cropped_image = word[:, i - extend_image:segmentationIndex]
@@ -123,6 +136,7 @@ def word_splitter(word):
         # if the segmentation point is on the left side of the image
         elif i < 2:
             cropped_image = word[:, 0:segmentationIndex]
+            cropped_image = image_cropper(cropped_image)
             while classLetterChecker(cropped_image):
                 # extends the image to the right until sufficient classification value
                 cropped_image = word[:, 0:segmentationIndex + extend_image]
@@ -132,6 +146,7 @@ def word_splitter(word):
         # if the segmentation point is in the middle of the image
         else:
             croppedImage = word[:, i - 2:segmentationIndex + 2]
+            cropped_image = image_cropper(cropped_image)
             while classLetterChecker(croppedImage):
                 # Makes sure the crop doesn't go out of bounds
                 if i - extend_image < 0:
@@ -145,7 +160,7 @@ def word_splitter(word):
             segmentedLettersInWord.append(cropped_letter)
         segmentationIndex = i
         imageID += 1
-    return segmentedLettersInWord'''
+    return segmentedLettersInWord
 
 
 class Segmentor:
@@ -187,13 +202,12 @@ class Segmentor:
 
             # Checks if the crop is too small or too large
             if hBox != 0 and wBox != 0:
+                # Checks if the crop is too small or too large
                 if hBox > (1 / hBox * 100) and wBox > (1 / hBox * 100):
-                    # Saves the cropped letter as an object
+                    # Saves each segmented letter as a Letter object with the correct coordinate values
                     croppedLetter = Letter(crop, x, y, w, h)
-
                     # appends the cropped letter to the array
                     segmentedLetters.append(croppedLetter)
-
         # Saves the image with all the rectangles
         return segmentedLetters
 
@@ -301,6 +315,30 @@ class Classifier:
         # plt.show()
         # exit(0)
         return image_batch
+
+    def SimplyClassify(self, image):
+        # Fix the dimensions of the image
+        image = Image.fromarray(image)
+        new_image = Image.new(image.mode, (100, 100), 255)
+        x, y = int((100 / 2)) - int(image.width / 2), int(100 / 2) - int(image.height / 2)
+        new_image.paste(image, (x, y))
+        np_image = np.array(new_image) / 255
+
+        # Convert the numpy arrays into tensors
+        image = torch.from_numpy(np_image).float()
+
+        # Fix the shape of the array
+        image = image.unsqueeze(0).unsqueeze(0)
+        # Predict
+        result = self.model(image)
+        result = result[0]
+        # Convert the predictions to a numpy array
+
+        result = nnf.softmax(result, dim=0)
+        result = result.detach().numpy()
+        confidence = np.argmax(result)
+        prediction = self.classes[confidence]
+        return prediction, result[confidence] * 100
 
     def Classify(self, letters):
 
