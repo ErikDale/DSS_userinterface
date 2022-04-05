@@ -28,7 +28,7 @@ class Letter:
 
 # Returns the confidence value of a letter as a boolean.
 def classLetterChecker(image):
-    classifier = Classifier("./default.model")
+    classifier = Classifier("./default_2.model")
     _, confidence_value = classifier.SimplyClassify(image)
     return confidence_value
 

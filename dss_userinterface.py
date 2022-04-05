@@ -525,7 +525,7 @@ class App(QWidget):
             else:
                 self.segmentedLetters = segmenter.segmentClearBackground(img)
 
-            classifier = segToClass.Classifier("./default.model")
+            classifier = segToClass.Classifier("./default_2.model")
             resultsFromClassifier = classifier.Classify(self.segmentedLetters)
 
             # Draws the squares around the letters
