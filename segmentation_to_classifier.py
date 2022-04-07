@@ -8,6 +8,7 @@ import torch.nn as nn
 import torch.nn.functional as nnf
 from PIL import Image
 import image_straighten as imgStraighten
+import matplotlib.pyplot as plt
 
 
 # Object for letters that contain the image, the coordinates, and the classification.
@@ -392,6 +393,8 @@ class Classifier:
         # Setup classes
         self.classes = ['ALEF', 'BET', 'GIMEL', 'DALET', 'HE', 'VAV', 'ZAYIN', 'HET', 'TET', 'YOD', 'KAF', 'LAMED',
                         'MEM', 'NUN', 'SAMEKH', 'AYIN', 'PE', 'TSADI', 'QOF', 'RESH', 'SHIN', 'TAV']
+        self.names = None
+        self.values = None
 
     def __LoadImages(self, letters):
         image_batch = np.zeros((len(letters), self.input_size, self.input_size))
@@ -451,6 +454,31 @@ class Classifier:
         # Predict
         results = self.model(images)
 
+        letterDict = {
+            "ALEF": 0,
+            "BET": 0,
+            "GIMEL": 0,
+            "DALET": 0,
+            "HE": 0,
+            "VAV": 0,
+            "ZAYIN": 0,
+            "HET": 0,
+            "TET": 0,
+            "YOD": 0,
+            "KAF": 0,
+            "LAMED": 0,
+            "MEM": 0,
+            "NUN": 0,
+            "SAMEKH": 0,
+            "AYIN": 0,
+            "PE": 0,
+            "TSADI": 0,
+            "QOF": 0,
+            "RESH": 0,
+            "SHIN": 0,
+            "TAV": 0
+        }
+
         # Convert the predictions to a numpy array
 
         for i, result in enumerate(results):
@@ -459,9 +487,18 @@ class Classifier:
 
             confidence = np.argmax(result)
             prediction = self.classes[confidence]
+
+            letterDict[prediction] += 1
+
             letters[i].AddLabel(prediction, math.trunc(result[confidence] * 100))
 
+        self.names = list(letterDict.keys())
+        self.values = list(letterDict.values())
+
         return letters
+
+    def getDict(self):
+        return self.names, self.values
 
 
 class Convolutional(nn.Module):
