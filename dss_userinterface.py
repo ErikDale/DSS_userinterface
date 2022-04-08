@@ -8,9 +8,12 @@ from PyQt5.QtWidgets import QApplication, QWidget, QLabel, QGridLayout, QShortcu
 from PyQt5.QtCore import Qt, pyqtSignal, pyqtSlot, QRunnable, QObject, QThreadPool
 from PyQt5.QtGui import QPixmap, QKeySequence, QFont, QMovie
 
-import pyqtgraph as pg
-
 import segmentation_to_classifier as segToClass
+
+import numpy as np
+from PIL import Image
+
+import qimage2ndarray
 
 
 # Gotten alot from: https://stackoverflow.com/questions/35508711/how-to-enable-pan-and-zoom-in-a-qgraphicsview
@@ -202,8 +205,10 @@ class WorkerSignals(QObject):
     error = pyqtSignal(tuple)
     result = pyqtSignal(object)
     progress = pyqtSignal(int)
-    addItem = pyqtSignal(int, int, int, int)
-    addText = pyqtSignal(str, str, int, int, int, int)
+    #addItem = pyqtSignal(int, int, int, int, int)
+    #addText = pyqtSignal(str, str, int, int, int, int)
+    addPhoto = pyqtSignal()
+    addCroppedPhoto = pyqtSignal()
 
 
 # Class that allows for multithreading in the gui
@@ -433,11 +438,13 @@ class App(QWidget):
 
         self.segmentedLetters = []
 
+        self.img = None
+
     # Method that is run in the classify thread when rectangles are added to
     # the qgraphicsscene. This method needs to be run in the main thread
     # because PyQt5 does not allow items to be added to the qgraphicsscene in another
     # thread than the main thread.
-    def addItemToScene(self, x, y, width, height):
+    '''def addItemToScene(self, x, y, width, height, hImg):
         rect = QtWidgets.QGraphicsRectItem(QtCore.QRectF(x, y, width + 2, height + 2))
         self.photoViewer.scene.addItem(rect)
 
@@ -453,7 +460,24 @@ class App(QWidget):
             text.setPos(x - 5, y - 20)
         else:
             text.setPos(x - 5, y + height)
-        i += 1
+        i += 1'''
+    def addPhotoToScene(self):
+        #qimg = qimage2ndarray.array2qimage(self.img)
+        #pixmap = QPixmap()
+        #pixmap.fromImage(qimg)
+        im = Image.fromarray(self.img)
+        im.save("./classified_img.jpg")
+
+        self.photoViewer.setPhotoWithRectangle(pixmap=QPixmap("./classified_img.jpg"), rectangle=False)
+
+    def addCroppedPhotoToScene(self):
+        # qimg = qimage2ndarray.array2qimage(self.img)
+        # pixmap = QPixmap()
+        # pixmap.fromImage(qimg)
+        im = Image.fromarray(self.img)
+        im.save("./classified_img.jpg")
+
+        self.photoViewer.setPhoto(pixmap=QPixmap("./classified_img.jpg"))
 
     # Method that is run when the classify thread is done
     def threadComplete(self):
@@ -502,8 +526,10 @@ class App(QWidget):
             # Starts the classify method that classifies the image
             self.worker = Worker(self.classify)
             self.worker.signals.finished.connect(self.threadComplete)
-            self.worker.signals.addItem.connect(self.addItemToScene)
-            self.worker.signals.addText.connect(self.addTextToScene)
+            #self.worker.signals.addItem.connect(self.addItemToScene)
+            #self.worker.signals.addText.connect(self.addTextToScene)
+            self.worker.signals.addPhoto.connect(self.addPhotoToScene)
+            self.worker.signals.addCroppedPhoto.connect(self.addCroppedPhotoToScene)
 
             self.threadPool.start(self.worker)
 
@@ -518,14 +544,26 @@ class App(QWidget):
             # Uses the machine learning model we have made and pytesseract to segment and classify
             # the letters
             segmenter = segToClass.Segmentor()
-            img = cv2.imread(self.imagePath)
+            # img = cv2.imread(self.imagePath)
+
+            # Gets the image from the pixmap
+            qimg = self.photoViewer.photo.pixmap().toImage()
+
+            # Converts it to an numpy.ndarray
+            imgArray = qimage2ndarray.rgb_view(qimg)
+
+            # For some reason it has to be copied as uint8 to avoid errors
+            self.img = imgArray.astype(np.uint8).copy()
+
+            # Gets the height of the image
+            hImg = self.img.shape[0]
 
             self.segmentedLetters.clear()
             # Checking if the "yes" radiobutton is toggled on or off
             if self.groupBox.selectedYes:
-                self.segmentedLetters = segmenter.segmentVariedBackground(img)
+                self.segmentedLetters = segmenter.segmentVariedBackground(self.img)
             else:
-                self.segmentedLetters = segmenter.segmentClearBackground(img)
+                self.segmentedLetters = segmenter.segmentClearBackground(self.img)
 
             classifier = segToClass.Classifier("./default_2.model")
             resultsFromClassifier = classifier.Classify(self.segmentedLetters)
@@ -533,23 +571,56 @@ class App(QWidget):
             # Draws the squares around the letters
             i = 0
             for letter in resultsFromClassifier:
-                width = letter.w - letter.x
-                height = letter.h - letter.y
-                x = letter.x - 2
-                y = (img.shape[0] - (letter.y + height)) - 2
+                letterHeight = letter.h - letter.y
+                width = letter.w
+                height = letter.h
+                x = letter.x
+                y = letter.y
+                cv2.rectangle(self.img, (x, hImg - y), (width, hImg - height), (0, 0, 0), 1)
 
-                # Checks if the image is cropped. If it is, it should only draw rectangles inside the cropped area
-                if self.photoViewer.rubberBandItemGeometry is not None:
-                    if self.photoViewer.rubberBandItemGeometry.x() < x < self.photoViewer.rubberBandItemGeometry.x() + \
-                            self.photoViewer.rubberBandItemGeometry.width() and \
-                            self.photoViewer.rubberBandItemGeometry.y() < y < self.photoViewer.rubberBandItemGeometry.y() \
-                            + self.photoViewer.rubberBandItemGeometry.height():
-                        self.worker.signals.addItem.emit(x, y, width, height)
-                        self.worker.signals.addText.emit(str(letter.label), str(letter.confidence), i, x, y, height)
+                text = str(letter.label) + " " + str(letter.confidence) + "%"
+                # Alternates between writing the label on top and under the boxes
+                if i % 2 == 0:
+                    cv2.putText(self.img, text=text, org=(x, (hImg - y) + 10), fontFace=cv2.FONT_HERSHEY_PLAIN, fontScale=0.5, color=(0, 0, 0), thickness=1)
                 else:
+                    cv2.putText(self.img, text=text, org=(x, (hImg - y) - letterHeight), fontFace=cv2.FONT_HERSHEY_PLAIN, fontScale=0.5, color=(0, 0, 0), thickness=1)
+
+                i += 1
+
+            # self.img = self.img.astype(np.uint8).copy()
+
+            # print(self.img)
+            #qimg = qimage2ndarray.array2qimage(self.img)
+
+            #pixmap = QPixmap()
+            #pixmap.fromImage(qimg)
+            # im = Image.fromarray(self.img)
+            # im.save("./hei.jpg")
+
+            #self.photoViewer.setPhotoWithRectangle(pixmap=QPixmap("./hei.jpg"), rectangle=False)
+            if self.photoViewer.rubberBandItemGeometry is not None:
+                self.worker.signals.addCroppedPhoto.emit()
+            else:
+                self.worker.signals.addPhoto.emit()
+            '''width = letter.w - letter.x
+            height = letter.h - letter.y
+            x = letter.x - 2
+            y = (self.img.shape[0] - (letter.y + height)) - 2'''
+
+            # Checks if the image is cropped. If it is, it should only draw rectangles inside the cropped area
+            '''if self.photoViewer.rubberBandItemGeometry is not None:
+                if self.photoViewer.rubberBandItemGeometry.x() < x < self.photoViewer.rubberBandItemGeometry.x() + \
+                        self.photoViewer.rubberBandItemGeometry.width() and \
+                        self.photoViewer.rubberBandItemGeometry.y() < y < self.photoViewer.rubberBandItemGeometry.y() \
+                        + self.photoViewer.rubberBandItemGeometry.height():
                     self.worker.signals.addItem.emit(x, y, width, height)
                     self.worker.signals.addText.emit(str(letter.label), str(letter.confidence), i, x, y, height)
-                i += 1
+            else:
+            self.worker.signals.addItem.emit(x, y, width, height, hImg)
+            self.worker.signals.addText.emit(str(letter.label), str(letter.confidence), i, x, y, height)
+            i += 1'''
+            #im = Image.fromarray(self.img)
+            #im.save("./hei.jpg")
 
     # Method that saves the image to file
     def saveImage(self):
