@@ -466,18 +466,18 @@ class App(QWidget):
         #pixmap = QPixmap()
         #pixmap.fromImage(qimg)
         im = Image.fromarray(self.img)
-        im.save("./classified_img.jpg")
+        im.save("./classified_img.png")
 
-        self.photoViewer.setPhotoWithRectangle(pixmap=QPixmap("./classified_img.jpg"), rectangle=False)
+        self.photoViewer.setPhotoWithRectangle(pixmap=QPixmap("./classified_img.png"), rectangle=False)
 
     def addCroppedPhotoToScene(self):
         # qimg = qimage2ndarray.array2qimage(self.img)
         # pixmap = QPixmap()
         # pixmap.fromImage(qimg)
         im = Image.fromarray(self.img)
-        im.save("./classified_img.jpg")
+        im.save("./classified_img.png")
 
-        self.photoViewer.setPhoto(pixmap=QPixmap("./classified_img.jpg"))
+        self.photoViewer.setPhoto(pixmap=QPixmap("./classified_img.png"))
 
     # Method that is run when the classify thread is done
     def threadComplete(self):
