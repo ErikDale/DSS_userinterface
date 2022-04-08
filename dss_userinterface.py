@@ -4,7 +4,7 @@ from pathlib import Path
 
 import cv2
 from PyQt5 import QtWidgets, QtGui, QtCore
-from PyQt5.QtWidgets import QApplication, QWidget, QLabel, QGridLayout, QShortcut, QFileDialog, QMainWindow
+from PyQt5.QtWidgets import QApplication, QWidget, QLabel, QGridLayout, QShortcut, QFileDialog
 from PyQt5.QtCore import Qt, pyqtSignal, pyqtSlot, QRunnable, QObject, QThreadPool
 from PyQt5.QtGui import QPixmap, QKeySequence, QFont, QMovie
 

@@ -8,7 +8,7 @@ import torch.nn as nn
 import torch.nn.functional as nnf
 from PIL import Image
 import image_straighten as imgStraighten
-import matplotlib.pyplot as plt
+# import matplotlib.pyplot as plt
 
 
 # Object for letters that contain the image, the coordinates, and the classification.

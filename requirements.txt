@@ -1,6 +1,7 @@
+numpy==1.22.3
+opencv_python==4.5.5.62
+Pillow==9.1.0
 PyQt5==5.15.6
-opencv-python~=4.5.5.62
-torch~=1.11.0
-numpy~=1.22.2
-pytesseract~=0.3.9
-Pillow~=9.0.1
+pytesseract==0.3.8
+qimage2ndarray==1.9.0
+torch==1.10.1
