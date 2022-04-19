@@ -1,4 +1,5 @@
 import sys, os
+import glob
 import traceback
 from pathlib import Path
 
@@ -408,6 +409,15 @@ class App(QWidget):
         # Puts the button in the grid
         self.grid.addWidget(self.classifyButton, 6, 0)
 
+        # Creates a button for saving letters in image
+        self.textButton = QtWidgets.QPushButton(self)
+        self.textButton.setText("Save letters")
+        self.textButton.clicked.connect(self.cropLetters)
+        self.textButton.setFont(QFont('Arial', 12))
+
+        # Puts the button in the grid
+        self.grid.addWidget(self.textButton, 6, 1)
+
         # Creates a button for saving the image
         self.saveButton = QtWidgets.QPushButton(self)
         self.saveButton.setText("Save Image")
@@ -415,14 +425,14 @@ class App(QWidget):
         self.saveButton.setFont(QFont('Arial', 12))
 
         # Puts the button in the grid
-        self.grid.addWidget(self.saveButton, 6, 1)
+        self.grid.addWidget(self.saveButton, 7, 0)
 
         # Creates a help button that opens a help menu for the user
         self.helpButton = QtWidgets.QPushButton()
         self.helpButton.setText("Help")
         self.helpButton.setFont(QFont('Arial', 12))
         self.helpButton.clicked.connect(self.helpBox)
-        self.grid.addWidget(self.helpButton, 7, 0, 1, 2)
+        self.grid.addWidget(self.helpButton, 7, 1)
 
         self.setLayout(self.grid)
 
@@ -439,6 +449,47 @@ class App(QWidget):
         self.segmentedLetters = []
 
         self.img = None
+
+        self.classified = False
+
+        self.resultsFromClassifier = None
+
+    # Method that saves the letters that the segmentation detected when doing classification
+    def cropLetters(self):
+        if self.photoViewer.empty is True:
+            # A message box will appear telling the user that there is no image displayed
+            msg = QtWidgets.QMessageBox()
+            msg.information(self.photoViewer, "No Image Displayed", "There is no image displayed")
+        elif not self.classified:
+            # A message box will appear telling the user that the image has not yet been classified
+            msg = QtWidgets.QMessageBox()
+            msg.information(self.photoViewer, "Not Classified", "The image has not yet been classified")
+        else:
+            # Reading the image
+            img = cv2.imread(self.imagePath)
+            if len(img.shape) == 3:
+                hImg, wImg, _ = img.shape
+            else:
+                hImg, wImg = img.shape
+            # Removing the images that are in the letters folder if any
+            files = glob.glob("./letters/*.png")
+            for f in files:
+                os.remove(f)
+            i = 0
+            # Saving the letters in the image to the letters folder.
+            for letter in self.resultsFromClassifier:
+                x = letter.x
+                y = letter.y
+                w = letter.w
+                h = letter.h
+                crop = img[(hImg-h):(hImg-y), x:w]
+                name = "./letters/" + str(letter.label) + str(i) + ".png"
+                cv2.imwrite(name, crop)
+                i += 1
+            # A message box will appear telling the user that there is no image displayed
+            msg = TimerMessageBox("Saved", "The cropped letters have been saved in the 'letters' folder", parent=self.photoViewer)
+            msg.exec_()
+
 
     # Method that is run in the classify thread when rectangles are added to
     # the qgraphicsscene. This method needs to be run in the main thread
@@ -489,6 +540,7 @@ class App(QWidget):
         self.uncropButton.setDisabled(False)
         self.saveButton.setDisabled(False)
         self.helpButton.setDisabled(False)
+        self.textButton.setDisabled(False)
         self.groupBox.setDisabled(False)
         # Stops the loading gif
         self.movie.stop()
@@ -518,6 +570,7 @@ class App(QWidget):
             self.uncropButton.setDisabled(True)
             self.saveButton.setDisabled(True)
             self.helpButton.setDisabled(True)
+            self.textButton.setDisabled(True)
             self.groupBox.setDisabled(True)
             # Starts the animation of the loading gif
             self.loadingLabel.show()
@@ -566,11 +619,11 @@ class App(QWidget):
                 self.segmentedLetters = segmenter.segmentClearBackground(self.img)
 
             classifier = segToClass.Classifier("./default_2.model")
-            resultsFromClassifier = classifier.Classify(self.segmentedLetters)
+            self.resultsFromClassifier = classifier.Classify(self.segmentedLetters)
 
             # Draws the squares around the letters
             i = 0
-            for letter in resultsFromClassifier:
+            for letter in self.resultsFromClassifier:
                 letterHeight = letter.h - letter.y
                 width = letter.w
                 height = letter.h
@@ -581,9 +634,11 @@ class App(QWidget):
                 text = str(letter.label) + " " + str(letter.confidence) + "%"
                 # Alternates between writing the label on top and under the boxes
                 if i % 2 == 0:
-                    cv2.putText(self.img, text=text, org=(x, (hImg - y) + 10), fontFace=cv2.FONT_HERSHEY_PLAIN, fontScale=0.5, color=(0, 0, 0), thickness=1)
+                    cv2.putText(self.img, text=text, org=(x, (hImg - y) + 10),
+                                fontFace=cv2.FONT_HERSHEY_PLAIN, fontScale=0.5, color=(0, 0, 0), thickness=1)
                 else:
-                    cv2.putText(self.img, text=text, org=(x, (hImg - y) - letterHeight), fontFace=cv2.FONT_HERSHEY_PLAIN, fontScale=0.5, color=(0, 0, 0), thickness=1)
+                    cv2.putText(self.img, text=text, org=(x, ((hImg - y) - letterHeight) - 4),
+                                fontFace=cv2.FONT_HERSHEY_PLAIN, fontScale=0.5, color=(0, 0, 0), thickness=1)
 
                 i += 1
 
@@ -602,6 +657,8 @@ class App(QWidget):
                 self.worker.signals.addCroppedPhoto.emit()
             else:
                 self.worker.signals.addPhoto.emit()
+
+            self.classified = True
             '''width = letter.w - letter.x
             height = letter.h - letter.y
             x = letter.x - 2
@@ -658,14 +715,19 @@ class App(QWidget):
             self.photoViewer.setPhotoWithRectangle(pixmap=QPixmap(self.imagePath), rectangle=False)
             self.photoViewer.isCropped = False
             self.photoViewer.rubberBandItemGeometry = None
+            self.classified = False
 
     # Method that displays a help box to the user
     def helpBox(self):
         # A message box will appear telling the user that there is no image displayed
         msg = QtWidgets.QMessageBox()
-        msg.information(self, "Help", "Shortcuts: \n-Exit app: Ctrl+Q\n-Open images: Ctrl+O\n-Remove image: "
+        msg.information(self, "Help", "Use rgb or grayscale dead sea scroll images.\n"
+                                      "When you save the letters on the scroll image it will be "
+                                      "saved in a folder called 'letters' in the application folder.\n"
+                                      "Classifying big scroll images might take a minute or two.\n"
+                                      "Shortcuts: \n-Exit app: Ctrl+Q\n-Open images: Ctrl+O\n-Remove image: "
                                       "Ctrl+R\n-Crop image: Ctrl+W\n-Open help menu: Ctrl+H\n-Uncrop image: "
-                                      "Ctrl+U\n-Save image: Ctrl+S\n-Classify image: Ctrl+C")
+                                      "Ctrl+U\n-Save image: Ctrl+S\n-Classify image: Ctrl+C\n-Crop letters: Ctrl+L")
 
     # Method that creates shortcuts for the user
     def createShortCuts(self):
@@ -692,6 +754,9 @@ class App(QWidget):
 
         classifyShort = QShortcut(QKeySequence("Ctrl+C"), self)
         classifyShort.activated.connect(self.buttonClassify)
+
+        cropLettersShort = QShortcut(QKeySequence("Ctrl+L"), self)
+        cropLettersShort.activated.connect(self.cropLetters)
 
     # Method that sets rubberBool to true, so that the rubberBand is shown
     def rubberBandOn(self):
@@ -763,6 +828,8 @@ class App(QWidget):
             self.zoomLabel.setText("")
             # Hides the group box
             self.groupBox.hide()
+
+            self.classified = False
 
     # Checks if the file that enters the drop zone is an image
     def dragEnterEvent(self, event):
