@@ -132,7 +132,7 @@ def word_splitter(word):
         out_of_bounds = False
 
         # if the segmentation is on the right side of the image
-        if segmentationIndex > len(amountVertPixels)-5:
+        if segmentationIndex > len(amountVertPixels) - 5:
             cropped_image = word[:, i:len(amountVertPixels)]
             cropped_image = image_cropper(cropped_image)
 
@@ -146,8 +146,8 @@ def word_splitter(word):
                     break
                 # checks if the image has extended further than minimum letter width distance /2
                 # or if it has gone out of bounds
-                elif extend_image > minLetterWidth/2 or out_of_bounds is True:
-                    #Uses the best extend image value that has the highest confidence value
+                elif extend_image > minLetterWidth / 2 or out_of_bounds is True:
+                    # Uses the best extend image value that has the highest confidence value
                     cropped_image = word[:, i - best_extend_image:len(amountVertPixels)]
                     cropped_image = image_cropper(cropped_image)
                     break
@@ -158,7 +158,7 @@ def word_splitter(word):
                         confidence_value = new_confidence_value
                         best_extend_image = extend_image
                     # reached out of bounds
-                    if i-extend_image < 0:
+                    if i - extend_image < 0:
                         out_of_bounds = True
                     else:
                         # extends the image to the left until sufficient classification value
@@ -190,7 +190,7 @@ def word_splitter(word):
                     cropped_image = image_cropper(cropped_image)
                     break
                 else:
-                    #Saves the best confidence value and its extend_image value
+                    # Saves the best confidence value and its extend_image value
                     if confidence_value < new_confidence_value:
                         confidence_value = new_confidence_value
                         best_extend_image = extend_image
@@ -221,27 +221,30 @@ def word_splitter(word):
                 # checks if the image has extended further than minimum letter width distance /2
                 # or if it has gone out of bounds
                 elif extend_image > minLetterWidth or out_of_bounds is True:
-                    cropped_image = word[:, i-best_extend_image:segmentationIndex + best_extend_image]
+                    cropped_image = word[:, i - best_extend_image:segmentationIndex + best_extend_image]
                     cropped_image = image_cropper(cropped_image)
                     break
                 else:
-                    #Saves the best confidence value and its extend_image value
+                    # Saves the best confidence value and its extend_image value
                     if confidence_value < new_confidence_value:
                         confidence_value = new_confidence_value
                         best_extend_image = extend_image
                     # checks if the extend image goes out of bounds on either end
-                    if i-extend_image < 0 or segmentationIndex + extend_image > len(amountVertPixels):
+                    if i - extend_image < 0 or segmentationIndex + extend_image > len(amountVertPixels):
                         out_of_bounds = True
                     else:
                         # extends the crop on both sides
-                        cropped_image = word[:, i-extend_image:segmentationIndex + extend_image]
+                        cropped_image = word[:, i - extend_image:segmentationIndex + extend_image]
                         cropped_image = image_cropper(cropped_image)
                         extend_image += 2
             cropped_letter = Letter(cropped_image, i, None, segmentationIndex, None)
             segmentedLettersInWord.append(cropped_letter)
         segmentationIndex = i
-    return segmentedLettersInWord
 
+    # Reverses the order of the letters so that they are in the correct order
+    segmented_letters_correct = segmentedLettersInWord[::-1]
+
+    return segmented_letters_correct
 
 class Segmentor:
     def __init__(self):

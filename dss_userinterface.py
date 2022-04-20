@@ -465,8 +465,11 @@ class App(QWidget):
             msg = QtWidgets.QMessageBox()
             msg.information(self.photoViewer, "Not Classified", "The image has not yet been classified")
         else:
-            # Reading the image
-            img = cv2.imread(self.imagePath)
+            if not self.photoViewer.isCropped:
+                # Reading the image
+                img = cv2.imread(self.imagePath)
+            else:
+                img = cv2.imread("./classified_img.png")
             if len(img.shape) == 3:
                 hImg, wImg, _ = img.shape
             else:
