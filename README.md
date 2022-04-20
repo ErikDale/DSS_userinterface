@@ -1,7 +1,7 @@
 # DSS_userinterface
 This application is made mainly for Windows and the following steps are for Windows OS primarily.
 
-## Run Application 
+## Run User Interface 
 To run this program you can either use our .exe file or clone this repo and run our python file. 
 
 ### Use Our Executable File
@@ -12,10 +12,10 @@ and run the dss_userinterface.exe file that is inside it. You unzip a zip-file b
 
 If you move the .exe file from the folder it will not work, so keep it in the folder.
 
-### Use Repository To Run Application
+### Use Repository To Run User Interface
 #### Install Python and Anaconda
 
-To run our application using our repository you need to have python: https://www.python.org/downloads/ installed on your Windows computer.
+To run our user interface using our repository you need to have python: https://www.python.org/downloads/ installed on your Windows computer.
 I would also recommend you download Anaconda: https://www.anaconda.com/products/individual to make it easier to run the appliction.
 
 #### Clone Repository
@@ -40,12 +40,14 @@ pip install -r requirements.txt
 ```
 to install all the dependencies needed to run the application. 
 
-#### Run Application
-When that is done you should be able to run the application using: 
+#### Run User Interface
+When that is done you should be able to run the user interface using: 
 ```
 python ./dss_userinterface.py
 ```
 
+#### Test image
+To test the user interface we have added a test image called *test.jpg* in the repo. The image is a paragraph from The Great Isaiah Scroll column 35, gotten from: http://dss.collections.imj.org.il/isaiah  
  
 
 
