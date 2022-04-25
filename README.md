@@ -21,7 +21,7 @@ I would also recommend you download Anaconda: https://www.anaconda.com/products/
 #### Clone Repository
 Clone repository in a wanted location on your computer using: 
 ```
-$ git clone https://github.com/ErikDale/DSS_userinterface.git
+git clone https://github.com/ErikDale/DSS_userinterface.git
 ```
 
 #### Open Anaconda Prompt
