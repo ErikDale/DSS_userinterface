@@ -305,7 +305,6 @@ class GroupBox(QtWidgets.QWidget):
 class App(QWidget):
     def __init__(self):
         super().__init__()
-        self.thread = {}
         # Sets the style, title and shape of the application
         self.setStyleSheet("QLabel{font-size: 12pt;}")
         self.setWindowTitle("DSS Classifier")
@@ -411,7 +410,7 @@ class App(QWidget):
 
         # Creates a button for saving letters in image
         self.textButton = QtWidgets.QPushButton(self)
-        self.textButton.setText("Save letters")
+        self.textButton.setText("Save Letters")
         self.textButton.clicked.connect(self.cropLetters)
         self.textButton.setFont(QFont('Arial', 12))
 
