@@ -17,7 +17,7 @@ from PIL import Image
 import qimage2ndarray
 
 
-# Gotten alot from: https://stackoverflow.com/questions/35508711/how-to-enable-pan-and-zoom-in-a-qgraphicsview
+# Gotten a lot from: https://stackoverflow.com/questions/35508711/how-to-enable-pan-and-zoom-in-a-qgraphicsview
 # Class that represents the photoviewer object
 class PhotoViewer(QtWidgets.QGraphicsView):
     photoClicked = QtCore.pyqtSignal(QtCore.QPoint)
@@ -206,8 +206,6 @@ class WorkerSignals(QObject):
     error = pyqtSignal(tuple)
     result = pyqtSignal(object)
     progress = pyqtSignal(int)
-    #addItem = pyqtSignal(int, int, int, int, int)
-    #addText = pyqtSignal(str, str, int, int, int, int)
     addPhoto = pyqtSignal()
     addCroppedPhoto = pyqtSignal()
 
@@ -492,41 +490,13 @@ class App(QWidget):
             msg = TimerMessageBox("Saved", "The cropped letters have been saved in the 'letters' folder", parent=self.photoViewer)
             msg.exec_()
 
-
-    # Method that is run in the classify thread when rectangles are added to
-    # the qgraphicsscene. This method needs to be run in the main thread
-    # because PyQt5 does not allow items to be added to the qgraphicsscene in another
-    # thread than the main thread.
-    '''def addItemToScene(self, x, y, width, height, hImg):
-        rect = QtWidgets.QGraphicsRectItem(QtCore.QRectF(x, y, width + 2, height + 2))
-        self.photoViewer.scene.addItem(rect)
-
-    # Method that is run in the classify thread when the labels are added to
-    # the classification rectangles This method needs to be run in the main thread
-    # because PyQt5 does not allow items to be added to the qgraphicsscene in another
-    # thread than the main thread.
-    def addTextToScene(self, label, confidence, i, x, y, height):
-        text = self.photoViewer.scene.addText(label + " " + confidence + "%",
-                                              QFont('Arial', 4))
-        # Alternates between writing the label on top and under the boxes
-        if i % 2 == 0:
-            text.setPos(x - 5, y - 20)
-        else:
-            text.setPos(x - 5, y + height)
-        i += 1'''
     def addPhotoToScene(self):
-        #qimg = qimage2ndarray.array2qimage(self.img)
-        #pixmap = QPixmap()
-        #pixmap.fromImage(qimg)
         im = Image.fromarray(self.img)
         im.save("./classified_img.png")
 
         self.photoViewer.setPhotoWithRectangle(pixmap=QPixmap("./classified_img.png"), rectangle=False)
 
     def addCroppedPhotoToScene(self):
-        # qimg = qimage2ndarray.array2qimage(self.img)
-        # pixmap = QPixmap()
-        # pixmap.fromImage(qimg)
         im = Image.fromarray(self.img)
         im.save("./classified_img.png")
 
@@ -581,8 +551,6 @@ class App(QWidget):
             # Starts the classify method that classifies the image
             self.worker = Worker(self.classify)
             self.worker.signals.finished.connect(self.threadComplete)
-            #self.worker.signals.addItem.connect(self.addItemToScene)
-            #self.worker.signals.addText.connect(self.addTextToScene)
             self.worker.signals.addPhoto.connect(self.addPhotoToScene)
             self.worker.signals.addCroppedPhoto.connect(self.addCroppedPhotoToScene)
 
@@ -643,43 +611,12 @@ class App(QWidget):
                                 fontFace=cv2.FONT_HERSHEY_PLAIN, fontScale=0.5, color=(0, 0, 0), thickness=1)
 
                 i += 1
-
-            # self.img = self.img.astype(np.uint8).copy()
-
-            # print(self.img)
-            #qimg = qimage2ndarray.array2qimage(self.img)
-
-            #pixmap = QPixmap()
-            #pixmap.fromImage(qimg)
-            # im = Image.fromarray(self.img)
-            # im.save("./hei.jpg")
-
-            #self.photoViewer.setPhotoWithRectangle(pixmap=QPixmap("./hei.jpg"), rectangle=False)
             if self.photoViewer.rubberBandItemGeometry is not None:
                 self.worker.signals.addCroppedPhoto.emit()
             else:
                 self.worker.signals.addPhoto.emit()
 
             self.classified = True
-            '''width = letter.w - letter.x
-            height = letter.h - letter.y
-            x = letter.x - 2
-            y = (self.img.shape[0] - (letter.y + height)) - 2'''
-
-            # Checks if the image is cropped. If it is, it should only draw rectangles inside the cropped area
-            '''if self.photoViewer.rubberBandItemGeometry is not None:
-                if self.photoViewer.rubberBandItemGeometry.x() < x < self.photoViewer.rubberBandItemGeometry.x() + \
-                        self.photoViewer.rubberBandItemGeometry.width() and \
-                        self.photoViewer.rubberBandItemGeometry.y() < y < self.photoViewer.rubberBandItemGeometry.y() \
-                        + self.photoViewer.rubberBandItemGeometry.height():
-                    self.worker.signals.addItem.emit(x, y, width, height)
-                    self.worker.signals.addText.emit(str(letter.label), str(letter.confidence), i, x, y, height)
-            else:
-            self.worker.signals.addItem.emit(x, y, width, height, hImg)
-            self.worker.signals.addText.emit(str(letter.label), str(letter.confidence), i, x, y, height)
-            i += 1'''
-            #im = Image.fromarray(self.img)
-            #im.save("./hei.jpg")
 
     # Method that saves the image to file
     def saveImage(self):
@@ -726,7 +663,10 @@ class App(QWidget):
         msg.information(self, "Help", "Use rgb or grayscale dead sea scroll images.\n"
                                       "When you save the letters on the scroll image it will be "
                                       "saved in a folder called 'letters' in the application folder.\n"
-                                      "Classifying big scroll images might take a minute or two.\n"
+                                      "Classifying big scroll images might take a couple of minutes.\n"
+                                      "If the scroll image has varying background, meaning stains or darker areas "
+                                      "in the background, please select the 'Yes' radio button. If the image has a clean, "
+                                      "white background, please select the 'No' radio button.\n"
                                       "Shortcuts: \n-Exit app: Ctrl+Q\n-Open images: Ctrl+O\n-Remove image: "
                                       "Ctrl+R\n-Crop image: Ctrl+W\n-Open help menu: Ctrl+H\n-Uncrop image: "
                                       "Ctrl+U\n-Save image: Ctrl+S\n-Classify image: Ctrl+C\n-Crop letters: Ctrl+L")
