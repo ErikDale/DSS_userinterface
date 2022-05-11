@@ -18,6 +18,7 @@ import qimage2ndarray
 
 
 # Gotten a lot from: https://stackoverflow.com/questions/35508711/how-to-enable-pan-and-zoom-in-a-qgraphicsview
+# Date: 10.03.2022
 # Class that represents the photoviewer object
 class PhotoViewer(QtWidgets.QGraphicsView):
     photo_clicked = QtCore.pyqtSignal(QtCore.QPoint)
@@ -201,6 +202,7 @@ class PhotoViewer(QtWidgets.QGraphicsView):
 # Class that allows for multithreading in the gui
 # Heavily inspired by this:
 # https://stackoverflow.com/questions/63393099/how-to-display-a-loading-animated-gif-while-a-code-is-executing-in-backend-of-my
+# Date: 25.03.2022
 class WorkerSignals(QObject):
     finished = pyqtSignal()
     error = pyqtSignal(tuple)
@@ -213,6 +215,7 @@ class WorkerSignals(QObject):
 # Class that allows for multithreading in the gui
 # Heavily inspired by this:
 # https://stackoverflow.com/questions/63393099/how-to-display-a-loading-animated-gif-while-a-code-is-executing-in-backend-of-my
+# Date: 25.03.2022
 class Worker(QRunnable):
     def __init__(self, fn, *args, **kwargs):
         super(Worker, self).__init__()
@@ -245,6 +248,7 @@ class Worker(QRunnable):
 # Class that represents a timed message box that will appear when classification is done
 # Heavily inspired by this:
 # https://stackoverflow.com/questions/40932639/pyqt-messagebox-automatically-closing-after-few-secondshttps://stackoverflow.com/questions/40932639/pyqt-messagebox-automatically-closing-after-few-seconds
+# Date: 05.04.2022
 class TimerMessageBox(QtWidgets.QMessageBox):
     def __init__(self, title, text, timeout=2, parent=None):
         super(TimerMessageBox, self).__init__(parent)
@@ -638,7 +642,7 @@ class App(QWidget):
             image = pixmap.toImage()
             image.save(file_path)
 
-    # Methos that makes the user able to uncrop an image
+    # Methods that makes the user able to uncrop an image
     def uncrop_image(self):
         # Checks if there actually is an image to crop or not
         if self.photo_viewer.empty is True:
