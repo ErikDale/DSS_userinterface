@@ -47,7 +47,7 @@ python ./dss_userinterface.py
 ```
 
 #### Test image
-To test the user interface we have added a test image called *test.jpg* in the repo. The image is a paragraph from The Great Isaiah Scroll column 35, gotten from: http://dss.collections.imj.org.il/isaiah  
+To test the user interface we have added a test image called *test.jpg* in the repo. The image is a paragraph from The Great Isaiah Scroll column 35, gotten from: https://archive.org/details/qumran
  
 
 
