@@ -61,6 +61,7 @@ class PhotoViewer(QtWidgets.QGraphicsView):
 
         self.is_cropped = False
         self.zoom_level = 100
+        self.cropped_img = None
 
     # Method for removing image from pixmap
     def remove_item(self):
@@ -191,6 +192,21 @@ class PhotoViewer(QtWidgets.QGraphicsView):
             self.rubber_band_item_geometry = self.rubber_band_item.geometry()
             crop = self.photo.pixmap().copy(self.rubber_band_item_geometry)
             self.set_photo(crop)
+
+            # Gets the image from the pixmap
+            qimg = self.photo.pixmap().toImage()
+
+            # Converts it to an numpy.ndarray
+            img_array = qimage2ndarray.rgb_view(qimg)
+
+            # For some reason it has to be copied as uint8 to avoid errors
+            self.cropped_img = img_array.astype(np.uint8).copy()
+
+            # Saving the cropped image so that it later can be used to crop letters from
+            # with the "Save Letters" button.
+            im = Image.fromarray(self.cropped_img)
+            im.save("./cropped_img.png")
+
             self.rubber_band_item.hide()
             self.rubber_bool = False
             self.is_cropped = True
@@ -470,7 +486,7 @@ class App(QWidget):
                 # Reading the image
                 img = cv2.imread(self.image_path)
             else:
-                img = cv2.imread("./classified_img.png")
+                img = cv2.imread("./cropped_img.png")
             if len(img.shape) == 3:
                 h_img, w_img, _ = img.shape
             else:
